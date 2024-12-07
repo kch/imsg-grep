@@ -256,49 +256,110 @@ func getColumnIndex(_ statement: OpaquePointer!, _ name: String) -> Int32 {
   }()
 }
 
+struct MessageJSON: Codable {
+  let sender: String
+  let chat: String?
+  let recipients: [String]
+  let message: String
+  let has_attachments: Bool
+}
+
+// Original text output format - now unused but preserved for reference
 func processMessage(statement: OpaquePointer, index: Int) -> String {
-  let date           = sqlite3_column_text(statement, getColumnIndex(statement, "date"        )).map { String(cString: $0) } ?? ""
-  let sender         = sqlite3_column_text(statement, getColumnIndex(statement, "sender"      )).map { String(cString: $0) } ?? ""
-  let service        = sqlite3_column_text(statement, getColumnIndex(statement, "service"     )).map { String(cString: $0) } ?? ""
+// let date        = sqlite3_column_text(statement, getColumnIndex(statement, "date"     )).map { String(cString: $0) } ?? ""
+let sender         = sqlite3_column_text(statement, getColumnIndex(statement, "sender"      )).map { String(cString: $0) } ?? ""
+// let service     = sqlite3_column_text(statement, getColumnIndex(statement, "service"     )).map { String(cString: $0) } ?? ""
   let chatStyle      = sqlite3_column_int( statement, getColumnIndex(statement, "chat_style"  ))
   let chatName       = sqlite3_column_text(statement, getColumnIndex(statement, "chat_name"   )).map { String(cString: $0) }
   let participants   = sqlite3_column_text(statement, getColumnIndex(statement, "participants")).map { String(cString: $0) }
   let text           = sqlite3_column_text(statement, getColumnIndex(statement, "text"        )).map { String(cString: $0) }
   let decodedText    = sqlite3_column_text(statement, getColumnIndex(statement, "decoded_text")).map { String(cString: $0) }
-  let matchedIn      = sqlite3_column_text(statement, getColumnIndex(statement, "matched_in"  )).map { String(cString: $0) }
+  // let matchedIn   = sqlite3_column_text(statement, getColumnIndex(statement, "matched_in"  )).map { String(cString: $0) }
   let hasAttachments = sqlite3_column_int (statement, getColumnIndex(statement, "cache_has_attachments")) == 1
 
-  let messageText: String
-  let textAlert: String
-  if let t = text, let dt = decodedText {
-    if t == dt {
-      messageText = t
-      textAlert = ""
-    } else {
-      messageText = "TEXT: \(t)\nATTR: \(dt)"
-      textAlert = "[!] Different text versions"
-    }
-  } else {
-    messageText = text ?? decodedText ?? ""
-    textAlert = ""
-  }
+  //let messageText: String
+  //let textAlert: String
+  //if let t = text, let dt = decodedText {
+  //  if t == dt {
+  //    messageText = t
+  //    textAlert = ""
+  //  } else {
+  //    messageText = "TEXT: \(t)\nATTR: \(dt)"
+  //    textAlert = "[!] Different text versions"
+  //  }
+  //} else {
+  //  messageText = text ?? decodedText ?? ""
+  //  textAlert = ""
+  //}
 
-  let chatType = chatStyle == 43 ? "Group" : "Individual"
+  let message = MessageJSON(
+    sender: sender,
+    chat: chatStyle == 43 ? chatName : nil,
+    recipients: participants?.split(separator: ",").map { String($0) } ?? [],
+    message: text ?? decodedText ?? "",
+    has_attachments: hasAttachments
+  )
 
-  return """
-    [\(index)] \(date) \(textAlert)
-    From:     \(sender)
-    Service:    \(service)
-    Chat Type:  \(chatType)
-    Chat Name:  \(chatName ?? "none")
-    Participants: \(participants ?? "none")
-    Message:    \(messageText)
-    Matched In:   \(matchedIn ?? "unknown")
-    Attachments:  \(hasAttachments)
-    ----------------
-    """
+  messages.append(message)
+  return "" // We'll encode everything at the end
+
+  /*
+  -- From: handle.id
+  -- Examples: "john@example.com", "+1234567890", "someone@icloud.com"
+  SELECT COALESCE(handle.id, '') as sender
+
+  -- Service: handle.service
+  -- Examples: "iMessage", "SMS", "icloud.com"
+  SELECT COALESCE(handle.service, '') as service
+
+  -- Chat Type: chat.style
+  -- 43 = Group chat
+  -- 45 = Individual chat
+  SELECT chat.style as chat_style
+
+  -- Chat Name: chat.display_name
+  -- Examples: "Family Group", "Work Team", "John and Bob"
+  -- NULL for individual chats unless manually named
+  SELECT chat.display_name as chat_name
+
+  -- Participants: GROUP_CONCAT of handle.id for chat members
+  -- Examples: "bob@icloud.com,alice@example.com,+1234567890"
+  -- Comma-separated list of all participants except yourself
+  SELECT GROUP_CONCAT(DISTINCT other_handles.id) as participants
+
+  -- Message: combination of message.text and decoded_text
+  -- text: message.text
+  -- Example: "Hey, what's up?"
+  -- decoded_text: DECODE_ATTRIBUTED(message.attributedBody)
+  -- Example: "Meeting at 2pm 📅" (with emoji/formatting)
+
+  -- Matched In: our CASE statement result
+  -- Values: "text" or "attr"
+  -- Shows whether match was found in plain text or attributed text
+  CASE WHEN ... THEN 'text' ELSE 'attr' END as matched_in
+
+  -- Attachments: message.cache_has_attachments
+  -- Values: 0 or 1
+  -- Indicates if message includes photos, files, etc.
+  SELECT decoded.cache_has_attachments
+
+  */
+
+  //return """
+  //  [\(index)] \(date) \(textAlert)
+  //  From:     \(sender)
+  //  Service:    \(service)
+  //  Chat Type:  \(chatType)
+  //  Chat Name:  \(chatName ?? "none")
+  //  Participants: \(participants ?? "none")
+  //  Message:    \(messageText)
+  //  Matched In:   \(matchedIn ?? "unknown")
+  //  Attachments:  \(hasAttachments)
+  //  ----------------
+  //  """
 }
 
+var messages: [MessageJSON] = []
 // MARK: - Main Run
 let homePath = NSString(string: "~/Library/Messages/chat.db").expandingTildeInPath
 var db: OpaquePointer?
@@ -342,4 +403,7 @@ while sqlite3_step(statement) == SQLITE_ROW {
   print(processMessage(statement: statement!, index: matchCount))
 }
 
+let encoder = JSONEncoder()
+encoder.outputFormatting = [.prettyPrinted]
+print(String(data: try! encoder.encode(messages), encoding: .utf8)!)
 fputs("Found \(matchCount) matches in \(String(format: "%.3f", getTime() - start))s\n", stderr)
