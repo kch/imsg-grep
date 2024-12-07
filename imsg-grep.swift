@@ -248,16 +248,16 @@ func buildQuery() -> (String, [String]) {
 
 // MARK: - Message Processing
 func processMessage(statement: OpaquePointer, index: Int) -> String {
-  let date     = sqlite3_column_text(statement, 0).map { String(cString: $0) } ?? ""
-  let sender     = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
-  let service    = sqlite3_column_text(statement, 2).map { String(cString: $0) } ?? ""
-  let chatStyle  = sqlite3_column_int(statement, 3)
-  let chatName   = sqlite3_column_text(statement, 4).map { String(cString: $0) }
-  let participants = sqlite3_column_text(statement, 5).map { String(cString: $0) }
-  let text     = sqlite3_column_text(statement, 6).map { String(cString: $0) }
-  let decodedText  = sqlite3_column_text(statement, 7).map { String(cString: $0) }
-  let matchedIn  = sqlite3_column_text(statement, 8).map { String(cString: $0) }
-  let hasAttachments = sqlite3_column_int(statement, 9) == 1
+  let date           = sqlite3_column_text(statement, 0).map { String(cString: $0) } ?? ""
+  let sender         = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
+  let service        = sqlite3_column_text(statement, 2).map { String(cString: $0) } ?? ""
+  let chatStyle      = sqlite3_column_int(statement,  3)
+  let chatName       = sqlite3_column_text(statement, 4).map { String(cString: $0) }
+  let participants   = sqlite3_column_text(statement, 5).map { String(cString: $0) }
+  let text           = sqlite3_column_text(statement, 6).map { String(cString: $0) }
+  let decodedText    = sqlite3_column_text(statement, 7).map { String(cString: $0) }
+  let matchedIn      = sqlite3_column_text(statement, 8).map { String(cString: $0) }
+  let hasAttachments = sqlite3_column_int(statement,  9) == 1
 
   let messageText: String
   let textAlert: String
