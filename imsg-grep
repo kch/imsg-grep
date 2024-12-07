@@ -16,15 +16,15 @@ var chat:          String?
 
 var i = args.startIndex
 while i < args.endIndex {
-  switch args[i] {
-  case "--since":  i += 1; since  = i < args.endIndex ? args[i] : nil
-  case "--to":     i += 1; to     = i < args.endIndex ? args[i] : nil
-  case "--from":   i += 1; from   = i < args.endIndex ? args[i] : nil
-  case "--with":   i += 1; with   = i < args.endIndex ? args[i] : nil
-  case "--sender": i += 1; sender = i < args.endIndex ? args[i] : nil
-  case "--chat":   i += 1; chat   = i < args.endIndex ? args[i] : nil
-  case "--raw":   useRawLike = true
-  default: contentPattern = args[i]
+switch args[i] {
+case "--since":  i += 1; since  = i < args.endIndex ? args[i] : nil  // ISO date filter
+case "--to":     i += 1; to     = i < args.endIndex ? args[i] : nil  // Match chat name or participants
+case "--from":   i += 1; from   = i < args.endIndex ? args[i] : nil  // Match sender or chat name
+case "--with":   i += 1; with   = i < args.endIndex ? args[i] : nil  // Match sender, chat name, or participants
+case "--sender": i += 1; sender = i < args.endIndex ? args[i] : nil  // Match just the sender
+case "--chat":   i += 1; chat   = i < args.endIndex ? args[i] : nil  // Match just the chat name
+case "--raw":   useRawLike = true                                    // Use LIKE instead of REGEXP
+default: contentPattern = args[i]                                    // The search pattern
   }
   i += 1
 }
@@ -171,11 +171,13 @@ func buildQuery() -> (String, [String]) {
   params.add(searchPattern)
 
   // Additional search conditions
+  // Filter messages after the given ISO date (e.g. 2023-01-01)
   if let since = since {
     conditions.append("datetime(decoded.date / 1000000000 + 978307200, 'unixepoch') >= datetime(?)")
     params.add(since)
   }
 
+  // Match messages in chats where name matches or any participant matches pattern
   if let to = to {
     conditions.append("""
       (chat.display_name REGEXP ? OR
@@ -189,14 +191,38 @@ func buildQuery() -> (String, [String]) {
     params.add(to)
   }
 
+  // Match messages where sender handle matches pattern exactly
   if let sender = sender {
     conditions.append("handle.id REGEXP ?")
     params.add(sender)
   }
 
+  // Match messages in chats where name matches pattern exactly
   if let chat = chat {
     conditions.append("chat.display_name REGEXP ?")
     params.add(chat)
+  }
+  // Match messages where either sender or chat name matches pattern
+  if let from = from {
+    conditions.append("(handle.id REGEXP ? OR chat.display_name REGEXP ?)")
+    params.add(from)
+    params.add(from)
+  }
+
+  // Match messages where sender, chat name, or any participant matches pattern
+  if let with = with {
+    conditions.append("""
+      (handle.id REGEXP ? OR
+       chat.display_name REGEXP ? OR
+       EXISTS (
+         SELECT 1 FROM chat_handle_join chj
+         JOIN handle h ON chj.handle_id = h.ROWID
+         WHERE chj.chat_id = chat.ROWID AND h.id REGEXP ?
+       ))
+      """)
+    params.add(with)
+    params.add(with)
+    params.add(with)
   }
 
   if !conditions.isEmpty {
