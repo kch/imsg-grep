@@ -1,0 +1,75 @@
+#!/usr/bin/env ruby
+require "json"
+require "open3"
+
+MY_SENDER = "self@caiochassot.com"
+
+def build_contact_cache(identifiers)
+  cache = { "ME" => MY_SENDER }
+
+  # Remove special cases and empty values
+  lookup_ids = identifiers.reject { |id| cache.key?(id) || id.nil? }
+  return cache if lookup_ids.empty?
+
+  # Build combined lookup args for both email and name searches
+  search_args = lookup_ids.flat_map do |id|
+    case id
+    when /\@/     then ["--email", id]
+    when /^\+?\d/ then ["--phone", id]
+    else raise "weird sender: #{id}"
+    end
+  end
+
+  stdout, = Open3.capture2("./contact-lookup", *search_args)
+  results = JSON.parse(stdout) rescue {}
+
+  results.each do |search, contacts|
+    next if contacts.empty?
+    _, query = search.split(":", 2)
+    cache[query] = contacts.first["name"]
+  end
+
+  # Default to original id for non-matches
+  identifiers.each { |id| cache[id] ||= id if id }
+
+  cache
+end
+
+RX_SOURCES = %r[
+  https?://
+  (
+    (
+      (www\.)?youtube\.com|
+      youtu\.be
+    )/watch
+    |
+    ([^.]*\.)soundcloud\.com/
+  )
+]xi
+
+stdout, status = Open3.capture2 "./imsg-grep.swift",
+  "--since", "2024-01-01",
+  RX_SOURCES.to_s
+
+msgs = JSON.parse(stdout)
+
+# Build unique list of identifiers to look up
+identifiers = msgs.flat_map do |msg|
+  [msg["sender"], *(msg["recipients"] || [])].compact.uniq
+end.uniq
+
+# Build cache
+contact_cache = build_contact_cache(identifiers)
+
+msgs.each do |msg|
+  sender_name = contact_cache[msg["sender"]]
+
+  header = if msg["chat"]&.strip.to_s.empty?
+    recipients = (msg["recipients"]||[]).map { |r| contact_cache[r] }.join(", ")
+    "FROM: #{sender_name} (WITH #{recipients})"
+  else
+    "FROM: #{sender_name} (IN #{msg["chat"]})"
+  end
+
+  puts "#{header}\n#{msg["message"]}\n\n"
+end
