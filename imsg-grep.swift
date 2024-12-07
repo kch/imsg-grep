@@ -247,17 +247,26 @@ func buildQuery() -> (String, [String]) {
 }
 
 // MARK: - Message Processing
+func getColumnIndex(_ statement: OpaquePointer!, _ name: String) -> Int32 {
+  (0..<sqlite3_column_count(statement))
+  .first { i in sqlite3_column_name(statement, i).map { String(cString: $0) } == name }
+  .map { Int32($0) } ?? {
+    fputs("Error: column '\(name)' not found\n", stderr)
+    exit(1)
+  }()
+}
+
 func processMessage(statement: OpaquePointer, index: Int) -> String {
-  let date           = sqlite3_column_text(statement, 0).map { String(cString: $0) } ?? ""
-  let sender         = sqlite3_column_text(statement, 1).map { String(cString: $0) } ?? ""
-  let service        = sqlite3_column_text(statement, 2).map { String(cString: $0) } ?? ""
-  let chatStyle      = sqlite3_column_int(statement,  3)
-  let chatName       = sqlite3_column_text(statement, 4).map { String(cString: $0) }
-  let participants   = sqlite3_column_text(statement, 5).map { String(cString: $0) }
-  let text           = sqlite3_column_text(statement, 6).map { String(cString: $0) }
-  let decodedText    = sqlite3_column_text(statement, 7).map { String(cString: $0) }
-  let matchedIn      = sqlite3_column_text(statement, 8).map { String(cString: $0) }
-  let hasAttachments = sqlite3_column_int(statement,  9) == 1
+  let date           = sqlite3_column_text(statement, getColumnIndex(statement, "date"        )).map { String(cString: $0) } ?? ""
+  let sender         = sqlite3_column_text(statement, getColumnIndex(statement, "sender"      )).map { String(cString: $0) } ?? ""
+  let service        = sqlite3_column_text(statement, getColumnIndex(statement, "service"     )).map { String(cString: $0) } ?? ""
+  let chatStyle      = sqlite3_column_int( statement, getColumnIndex(statement, "chat_style"  ))
+  let chatName       = sqlite3_column_text(statement, getColumnIndex(statement, "chat_name"   )).map { String(cString: $0) }
+  let participants   = sqlite3_column_text(statement, getColumnIndex(statement, "participants")).map { String(cString: $0) }
+  let text           = sqlite3_column_text(statement, getColumnIndex(statement, "text"        )).map { String(cString: $0) }
+  let decodedText    = sqlite3_column_text(statement, getColumnIndex(statement, "decoded_text")).map { String(cString: $0) }
+  let matchedIn      = sqlite3_column_text(statement, getColumnIndex(statement, "matched_in"  )).map { String(cString: $0) }
+  let hasAttachments = sqlite3_column_int (statement, getColumnIndex(statement, "cache_has_attachments")) == 1
 
   let messageText: String
   let textAlert: String
