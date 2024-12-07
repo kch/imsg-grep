@@ -5,6 +5,7 @@ import ObjectiveC
 
 // MARK: - Command Line Args
 let args = CommandLine.arguments.dropFirst()
+var useRawLike = false
 var contentPattern: String = ""
 var since: String?
 var to: String?
@@ -22,6 +23,7 @@ while i < args.endIndex {
     case "--with":   i += 1; with   = i < args.endIndex ? args[i] : nil
     case "--sender": i += 1; sender = i < args.endIndex ? args[i] : nil
     case "--chat":   i += 1; chat   = i < args.endIndex ? args[i] : nil
+    case "--raw":   useRawLike = true
     default: contentPattern = args[i]
     }
     i += 1
@@ -33,6 +35,9 @@ if contentPattern.isEmpty {
 }
 
 // MARK: - SQLite Function Setup
+let searchPattern = useRawLike ?
+    "%\(contentPattern.lowercased())%" :
+    contentPattern
 let NSUnarchiver: AnyClass = NSClassFromString("NSUnarchiver")!
 let sel            = NSSelectorFromString("unarchiveObjectWithData:")
 let imp            = NSUnarchiver.method(for: sel)
@@ -120,15 +125,15 @@ func buildQuery() -> (String, [String]) {
             SELECT *,
                    DECODE_ATTRIBUTED(attributedBody) as decoded_text,
                    CASE
-                     WHEN text REGEXP ? THEN 'text'
+                   WHEN \(useRawLike ? "LOWER(text) LIKE ?" : "text REGEXP ?") THEN 'text'
                      ELSE 'attr'
                    END as matched_in
             FROM message
             -- Main content matching conditions
-            WHERE (text REGEXP ?
+            WHERE (\(useRawLike ? "LOWER(text) LIKE ?" : "text REGEXP ?")
                   OR (attributedBody IS NOT NULL
                       AND length(attributedBody) > 0
-                      AND DECODE_ATTRIBUTED(attributedBody) REGEXP ?))
+                      AND \(useRawLike ? "LOWER(DECODE_ATTRIBUTED(attributedBody)) LIKE ?" : "DECODE_ATTRIBUTED(attributedBody) REGEXP ?")))
             -- Exclude metadata/action messages:
             -- associated_message_type: reaction
             -- 2000: love
@@ -161,9 +166,9 @@ func buildQuery() -> (String, [String]) {
         """
 
     // Add pattern parameters for both text and attributed content
-    params.add(contentPattern)
-    params.add(contentPattern)
-    params.add(contentPattern)
+    params.add(searchPattern)
+    params.add(searchPattern)
+    params.add(searchPattern)
 
     // Additional search conditions
     if let since = since {
