@@ -16,26 +16,13 @@ var chat: String?
 var i = args.startIndex
 while i < args.endIndex {
     switch args[i] {
-    case "--since":
-        i += 1
-        since = i < args.endIndex ? args[i] : nil
-    case "--to":
-        i += 1
-        to = i < args.endIndex ? args[i] : nil
-    case "--from":
-        i += 1
-        from = i < args.endIndex ? args[i] : nil
-    case "--with":
-        i += 1
-        with = i < args.endIndex ? args[i] : nil
-    case "--sender":
-        i += 1
-        sender = i < args.endIndex ? args[i] : nil
-    case "--chat":
-        i += 1
-        chat = i < args.endIndex ? args[i] : nil
-    default:
-        contentPattern = args[i]
+    case "--since":  i += 1; since  = i < args.endIndex ? args[i] : nil
+    case "--to":     i += 1; to     = i < args.endIndex ? args[i] : nil
+    case "--from":   i += 1; from   = i < args.endIndex ? args[i] : nil
+    case "--with":   i += 1; with   = i < args.endIndex ? args[i] : nil
+    case "--sender": i += 1; sender = i < args.endIndex ? args[i] : nil
+    case "--chat":   i += 1; chat   = i < args.endIndex ? args[i] : nil
+    default: contentPattern = args[i]
     }
     i += 1
 }
@@ -61,35 +48,36 @@ struct QueryParams {
 }
 
 // Setup regexp and attributed text decoding functions
-func setupSQLiteFunctions(db: OpaquePointer) {
+func setupSQLiteFunctions(db: OpaquePointer, pattern: String) {
+    // Compile regex once
+    guard let compiledRegex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+        fputs("Invalid regex pattern\n", stderr)
+        exit(1)
+    }
+
+    // Store regex in user context
+    let context = Unmanaged.passRetained(compiledRegex)
     // fputs("Setting up SQLite functions...\n", stderr)
 
     // Regular expression matching
     sqlite3_create_function(
-        db,
-        "REGEXP",
-        2,
-        SQLITE_UTF8 | SQLITE_DETERMINISTIC,
-        nil,
-        { context, argc, argv in
-            guard let pattern = sqlite3_value_text(argv?[0]),
-                  let text = sqlite3_value_text(argv?[1]) else {
-                sqlite3_result_int(context, 0)
-                return
-            }
-            do {
-                let regex = try NSRegularExpression(
-                    pattern: String(cString: pattern),
-                    options: .caseInsensitive
-                )
-                let nsString = String(cString: text)
-                let range = NSRange(nsString.startIndex..<nsString.endIndex, in: nsString)
-                let matches = regex.firstMatch(in: nsString, range: range) != nil
-                sqlite3_result_int(context, matches ? 1 : 0)
-            } catch {
-                sqlite3_result_int(context, 0)
-            }
-        },
+    db,
+    "REGEXP",
+    2,
+    SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+    context.toOpaque(),
+    { context, argc, argv in
+    guard let text = sqlite3_value_text(argv?[1]) else {
+        sqlite3_result_int(context, 0)
+        return
+    }
+    let regex = Unmanaged<NSRegularExpression>.fromOpaque(
+        sqlite3_user_data(context)).takeUnretainedValue()
+    let nsString = String(cString: text)
+    let range = NSRange(nsString.startIndex..<nsString.endIndex, in: nsString)
+    let matches = regex.firstMatch(in: nsString, range: range) != nil
+    sqlite3_result_int(context, matches ? 1 : 0)
+    },
         nil,
         nil
     )
@@ -274,7 +262,7 @@ guard sqlite3_open(homePath, &db) == SQLITE_OK,
 }
 defer { sqlite3_close(db) }
 
-setupSQLiteFunctions(db: db)
+setupSQLiteFunctions(db: db, pattern: contentPattern)
 
 let (query, params) = buildQuery()
 // fputs("\nQuery:\n\(query)\n", stderr)
