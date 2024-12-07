@@ -38,12 +38,13 @@ end
 RX_SOURCES = %r[
   https?://
   (
-    (
-      (www\.)?youtube\.com|
-      youtu\.be
-    )/watch
+    ((www|m)\.)?youtube\.com/watch
     |
-    ([^.]*\.)?soundcloud\.com/
+    youtu\.be/
+    |
+    ([^.]*\.)?soundcloud\.com/\S
+    |
+    open\.spotify\.com/(album|track)
   )
 ]xi
 
