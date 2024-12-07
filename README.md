@@ -30,15 +30,15 @@ A bit overkill but ¯\\\_(ツ)\_/¯
 ```json
 [
   {
-    "id": 123456,
-    "date": "2024-01-15 14:23:11",
-    "sender": "alice@example.com",
-    "chat": "Team Chat",
+    "id": 666,
+    "date": "1993-08-10 14:23:11",
+    "sender": "varg@mayhem.no",
+    "chat": "Black Metal Circle",
     "recipients": [
-      "bob@example.com",
-      "carol@example.com"
+      "euronymous@deathlike.no",
+      "dead@mayhem.no"
     ],
-    "message": "Meeting tomorrow at 10am",
+    "message": "Meeting at the cabin tomorrow at 10pm",
     "has_attachments": false
   }
 ]
@@ -61,18 +61,18 @@ Fields:
 ## Example Output
 ```json
 {
-  "--name:John": [
+  "--name:Fenriz": [
     {
-      "name": "John Smith",
-      "phones": ["+1 (555) 123-4567"],
-      "emails": ["john.smith@example.com"]
+      "name": "Fenriz Nagell",
+      "phones": ["+47 555 666 777"],
+      "emails": ["fenriz@darkthrone.no"]
     }
   ],
   "--phone:123": [
     {
-      "name": "Jane Doe",
-      "phones": ["+1 (123) 555-7890"],
-      "emails": ["jane@example.com"]
+      "name": "Abbath Doom Occulta",
+      "phones": ["+47 123 666 789"],
+      "emails": ["abbath@immortal.no"]
     }
   ]
 }
@@ -94,11 +94,11 @@ Display Youtube/Soundcloud URLs from iMessage history.
 
 ## Example Output
 ```
-FROM: John Smith (IN Music Share Group)
-https://www.youtube.com/watch?v=dQw4w9WgXcQ
+FROM: Ihsahn (IN Emperor Rehearsals)
+https://www.youtube.com/watch?v=Kze6ULtcIlE
 
-FROM: Alice Jones (WITH Bob Wilson)
-https://soundcloud.com/artist/track-name
+FROM: Gaahl (WITH King ov Hell)
+https://soundcloud.com/user-425444345/mayhem-pagan-fears
 ```
 
 Notes:
