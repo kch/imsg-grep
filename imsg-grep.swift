@@ -2,6 +2,14 @@
 import SQLite3
 import Foundation
 import ObjectiveC
+import Darwin.C
+
+func getTime() -> Double {
+    var timebase = mach_timebase_info_data_t()
+    mach_timebase_info(&timebase)
+    let time = mach_absolute_time()
+    return Double(time) * Double(timebase.numer) / Double(timebase.denom) / Double(NSEC_PER_SEC)
+}
 
 // MARK: - Command Line Args
 let args          = CommandLine.arguments.dropFirst()
@@ -317,10 +325,12 @@ for (index, param) in params.enumerated() {
   }
 }
 
+let start = getTime()
+
 var matchCount = 0
 while sqlite3_step(statement) == SQLITE_ROW {
   matchCount += 1
   print(processMessage(statement: statement!, index: matchCount))
 }
 
-fputs("Found \(matchCount) matches\n", stderr)
+fputs("Found \(matchCount) matches in \(String(format: "%.3f", getTime() - start))s\n", stderr)
