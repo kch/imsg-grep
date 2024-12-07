@@ -43,7 +43,7 @@ RX_SOURCES = %r[
       youtu\.be
     )/watch
     |
-    ([^.]*\.)soundcloud\.com/
+    ([^.]*\.)?soundcloud\.com/
   )
 ]xi
 
