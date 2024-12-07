@@ -122,29 +122,29 @@ func buildQuery() -> (String, [String]) {
   // Base query using CTE for efficient text decoding
   var baseQuery = """
     WITH decoded AS (
-      SELECT *,
-           DECODE_ATTRIBUTED(attributedBody) as decoded_text,
-           CASE
-           WHEN \(useRawLike ? "LOWER(text) LIKE ?" : "text REGEXP ?") THEN 'text'
-           ELSE 'attr'
-           END as matched_in
-      FROM message
-      -- Main content matching conditions
-      WHERE (\(useRawLike ? "LOWER(text) LIKE ?" : "text REGEXP ?")
-          OR (attributedBody IS NOT NULL
-            AND length(attributedBody) > 0
-            AND \(useRawLike ? "LOWER(DECODE_ATTRIBUTED(attributedBody)) LIKE ?" : "DECODE_ATTRIBUTED(attributedBody) REGEXP ?")))
-      -- Exclude metadata/action messages:
-      -- associated_message_type: reaction
-      -- 2000: love
-      -- 2001: like
-      -- 2002: dislike
-      -- 2003: laugh
-      -- 2004: emphasize
-      -- 2005: question
-      -- 3000+, 4000 found as well
-      AND (associated_message_type IS NULL
-         OR associated_message_type < 2000)
+    SELECT *,
+      DECODE_ATTRIBUTED(attributedBody) as decoded_text,
+      CASE
+      WHEN \(useRawLike ? "LOWER(text) LIKE ?" : "text REGEXP ?") THEN 'text'
+      ELSE 'attr'
+      END as matched_in
+    FROM message
+    WHERE (associated_message_type IS NULL
+      OR associated_message_type < 2000)
+        -- ^^^  Exclude metadata/action messages:
+        -- associated_message_type: reaction
+        -- 2000: love
+        -- 2001: like
+        -- 2002: dislike
+        -- 2003: laugh
+        -- 2004: emphasize
+        -- 2005: question
+        -- 3000+, 4000 exist too
+        -- Main content matching conditions
+      AND (\(useRawLike ? "LOWER(text) LIKE ?" : "text REGEXP ?")
+      OR (attributedBody IS NOT NULL
+        AND length(attributedBody) > 0
+        AND \(useRawLike ? "LOWER(DECODE_ATTRIBUTED(attributedBody)) LIKE ?" : "DECODE_ATTRIBUTED(attributedBody) REGEXP ?")))
     )
     SELECT
       datetime((decoded.date / 1000000000) + 978307200, 'unixepoch', 'localtime') as date,
