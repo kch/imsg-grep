@@ -107,3 +107,23 @@ Notes:
 - Resolves contact names via Contacts.app
 
 TO BE MADE FLEXIBLE
+
+# decode
+
+Decodes archived NSAttributedString from stdin. Used for decoding chat.db attributedBody.
+
+This is a debug tool.
+
+## Usage
+```sh
+# From pasteboard
+pbpaste | ./decode
+
+# From Messages.app database
+sqlite3 chat.db "SELECT hex(attributedBody) FROM message WHERE ROWID = 126885;" | ./decode --hex
+```
+
+Flags:
+  --hex    Input is hex encoded rather than raw binary
+
+Note: Used by imsg-grep internally to decode iMessage attributed text content.
