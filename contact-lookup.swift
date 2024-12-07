@@ -4,53 +4,65 @@ import Foundation
 
 func digits(_ number: String) -> String { return number.filter { $0.isNumber } }
 
-func fetchContacts(matching field: String, _ query: String) {
+func parseArgs(_ args: [String]) -> [(field: String, query: String)] {
+  stride(from: 1, to: args.count - 1, by: 2).map { i in
+    (args[i], args[i + 1])
+  }
+}
+
+func fetchContacts(searchPairs: [(field: String, query: String)]) {
   let store = CNContactStore()
   let keysToFetch = [
     CNContactFormatter.descriptorForRequiredKeys(for: .fullName),
     CNContactPhoneNumbersKey as CNKeyDescriptor,
-    CNContactEmailAddressesKey as CNKeyDescriptor
+    CNContactEmailAddressesKey as CNKeyDescriptor,
   ]
 
   let request = CNContactFetchRequest(keysToFetch: keysToFetch)
-  var results = [[String: Any]]()
+  var resultsBySearch: [String: [[String: Any]]] = [:]
+
+  // Init empty arrays for each search
+  searchPairs.forEach { pair in
+    resultsBySearch["\(pair.field):\(pair.query)"] = []
+  }
 
   do {
     try store.enumerateContacts(with: request) { contact, _ in
       let displayName = CNContactFormatter.string(from: contact, style: .fullName) ?? ""
-      let phones    = contact.phoneNumbers.map { $0.value.stringValue }
-      let emails    = contact.emailAddresses.map { $0.value as String }
+      let phones     = contact.phoneNumbers.map { $0.value.stringValue }
+      let emails     = contact.emailAddresses.map { $0.value as String }
 
-      let matches = switch field {
-        case "--name":  displayName.range(of: query, options: .caseInsensitive) != nil
-        case "--phone": phones.contains { digits($0).contains(digits(query)) }
-        case "--email": emails.contains { $0.range(of: query, options: .caseInsensitive) != nil }
-        default:    false
+      // Check each search pair against contact
+      searchPairs.forEach { field, query in
+        let matches = switch field {
+          case "--name":  displayName.range(of: query, options: .caseInsensitive) != nil
+          case "--phone": phones.contains { digits($0).contains(digits(query)) }
+          case "--email": emails.contains { $0.range(of: query, options: .caseInsensitive) != nil }
+          default:    false
+        }
+        if !matches { return }
+
+        resultsBySearch["\(field):\(query)"]?.append([
+          "name":   displayName,
+          "phones": phones,
+          "emails": emails,
+        ])
       }
-      if !matches { return }
-
-      results.append([
-        "name":   displayName,
-        "phones": phones,
-        "emails": emails,
-      ])
     }
 
-    let jsonData = try JSONSerialization.data(withJSONObject: results, options: .prettyPrinted)
+    let jsonData = try JSONSerialization.data(withJSONObject: resultsBySearch, options: .prettyPrinted)
     guard let jsonString = String(data: jsonData, encoding: .utf8) else { return }
     print(jsonString)
 
   } catch {
-    print("Error fetching contacts: \(error)")
+    print("Error: \(error)")
   }
 }
 
-// CLI Argument Handling
-let args = CommandLine.arguments
-guard args.count == 3 else {
-  print("Usage: contacts-cli --name|--phone|--email <partial string>")
+guard CommandLine.arguments.count > 2 && CommandLine.arguments.count % 2 == 1 else {
+  print("Usage: contacts-cli [--name|--phone|--email <value>]...")
   exit(1)
 }
 
-let (field, query) = (args[1], args[2])
-fetchContacts(matching: field, query)
+let pairs = parseArgs(CommandLine.arguments)
+fetchContacts(searchPairs: pairs)
