@@ -155,6 +155,7 @@ func buildQuery() -> (String, [String]) {
         AND \(useRawLike ? "LOWER(DECODE_ATTRIBUTED(attributedBody)) LIKE ?" : "DECODE_ATTRIBUTED(attributedBody) REGEXP ?")))
     )
     SELECT
+      decoded.ROWID                                                                as id,
       datetime((decoded.date / 1000000000) + 978307200, 'unixepoch', 'localtime') as date,
       COALESCE(handle.id, '')                                                     as sender,
       COALESCE(handle.service, '')                                                as service,
@@ -164,7 +165,8 @@ func buildQuery() -> (String, [String]) {
       decoded.text,
       decoded.decoded_text,
       decoded.matched_in,
-      decoded.cache_has_attachments
+      decoded.cache_has_attachments,
+      decoded.is_from_me
     FROM decoded
       LEFT JOIN handle               ON decoded.handle_id          = handle.ROWID
       LEFT JOIN chat_message_join    ON decoded.ROWID              = chat_message_join.message_id
@@ -257,6 +259,8 @@ func getColumnIndex(_ statement: OpaquePointer!, _ name: String) -> Int32 {
 }
 
 struct MessageJSON: Codable {
+  let id: Int64
+  let date: String
   let sender: String
   let chat: String?
   let recipients: [String]
@@ -266,16 +270,19 @@ struct MessageJSON: Codable {
 
 // Original text output format - now unused but preserved for reference
 func processMessage(statement: OpaquePointer, index: Int) -> String {
-// let date        = sqlite3_column_text(statement, getColumnIndex(statement, "date"     )).map { String(cString: $0) } ?? ""
-let sender         = sqlite3_column_text(statement, getColumnIndex(statement, "sender"      )).map { String(cString: $0) } ?? ""
-// let service     = sqlite3_column_text(statement, getColumnIndex(statement, "service"     )).map { String(cString: $0) } ?? ""
+
+  let msgId          = sqlite3_column_int64(statement, getColumnIndex(statement, "id"))
+  let date           = sqlite3_column_text(statement, getColumnIndex(statement, "date"     )).map { String(cString: $0) } ?? ""
+  let isFromMe       = sqlite3_column_int(statement, getColumnIndex(statement, "is_from_me")) == 1
+  let sender         = isFromMe ? "ME" : (sqlite3_column_text(statement, getColumnIndex(statement, "sender")).map { String(cString: $0) } ?? "")
   let chatStyle      = sqlite3_column_int( statement, getColumnIndex(statement, "chat_style"  ))
   let chatName       = sqlite3_column_text(statement, getColumnIndex(statement, "chat_name"   )).map { String(cString: $0) }
   let participants   = sqlite3_column_text(statement, getColumnIndex(statement, "participants")).map { String(cString: $0) }
   let text           = sqlite3_column_text(statement, getColumnIndex(statement, "text"        )).map { String(cString: $0) }
   let decodedText    = sqlite3_column_text(statement, getColumnIndex(statement, "decoded_text")).map { String(cString: $0) }
-  // let matchedIn   = sqlite3_column_text(statement, getColumnIndex(statement, "matched_in"  )).map { String(cString: $0) }
   let hasAttachments = sqlite3_column_int (statement, getColumnIndex(statement, "cache_has_attachments")) == 1
+  // let service     = sqlite3_column_text(statement, getColumnIndex(statement, "service"     )).map { String(cString: $0) } ?? ""
+  // let matchedIn   = sqlite3_column_text(statement, getColumnIndex(statement, "matched_in"  )).map { String(cString: $0) }
 
   //let messageText: String
   //let textAlert: String
@@ -293,6 +300,8 @@ let sender         = sqlite3_column_text(statement, getColumnIndex(statement, "s
   //}
 
   let message = MessageJSON(
+    id: msgId,
+    date: date,
     sender: sender,
     chat: chatStyle == 43 ? chatName : nil,
     recipients: participants?.split(separator: ",").map { String($0) } ?? [],
