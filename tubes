@@ -38,7 +38,7 @@ end
 RX_SOURCES = %r[
   https?://
   (
-    ((www|m)\.)?youtube\.com/watch
+    ((www|m)\.)?youtube\.com/(v|embed|watch)
     |
     youtu\.be/
     |
