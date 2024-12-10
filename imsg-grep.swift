@@ -5,10 +5,10 @@ import ObjectiveC
 import Darwin.C
 
 func getTime() -> Double {
-    var timebase = mach_timebase_info_data_t()
-    mach_timebase_info(&timebase)
-    let time = mach_absolute_time()
-    return Double(time) * Double(timebase.numer) / Double(timebase.denom) / Double(NSEC_PER_SEC)
+  var timebase = mach_timebase_info_data_t()
+  mach_timebase_info(&timebase)
+  let time = mach_absolute_time()
+  return Double(time) * Double(timebase.numer) / Double(timebase.denom) / Double(NSEC_PER_SEC)
 }
 
 // MARK: - Command Line Args
@@ -24,15 +24,15 @@ var chat:          String?
 
 var i = args.startIndex
 while i < args.endIndex {
-switch args[i] {
-case "--since":  i += 1; since  = i < args.endIndex ? args[i] : nil  // ISO date filter
-case "--to":     i += 1; to     = i < args.endIndex ? args[i] : nil  // Match chat name or participants
-case "--from":   i += 1; from   = i < args.endIndex ? args[i] : nil  // Match sender or chat name
-case "--with":   i += 1; with   = i < args.endIndex ? args[i] : nil  // Match sender, chat name, or participants
-case "--sender": i += 1; sender = i < args.endIndex ? args[i] : nil  // Match just the sender
-case "--chat":   i += 1; chat   = i < args.endIndex ? args[i] : nil  // Match just the chat name
-case "--raw":   useRawLike = true                                    // Use LIKE instead of REGEXP
-default: contentPattern = args[i]                                    // The search pattern
+  switch args[i] {
+  case "--since":  i += 1; since  = i < args.endIndex ? args[i] : nil  // ISO date filter
+  case "--to":     i += 1; to     = i < args.endIndex ? args[i] : nil  // Match chat name or participants
+  case "--from":   i += 1; from   = i < args.endIndex ? args[i] : nil  // Match sender or chat name
+  case "--with":   i += 1; with   = i < args.endIndex ? args[i] : nil  // Match sender, chat name, or participants
+  case "--sender": i += 1; sender = i < args.endIndex ? args[i] : nil  // Match just the sender
+  case "--chat":   i += 1; chat   = i < args.endIndex ? args[i] : nil  // Match just the chat name
+  case "--raw":   useRawLike = true                                    // Use LIKE instead of REGEXP
+  default: contentPattern = args[i]                                    // The search pattern
   }
   i += 1
 }
@@ -74,23 +74,23 @@ func setupSQLiteFunctions(db: OpaquePointer, pattern: String) {
 
   // Regular expression matching
   sqlite3_create_function(
-  db,
-  "REGEXP",
-  2,
-  SQLITE_UTF8 | SQLITE_DETERMINISTIC,
-  context.toOpaque(),
-  { context, argc, argv in
-  guard let text = sqlite3_value_text(argv?[1]) else {
-    sqlite3_result_int(context, 0)
-    return
-  }
-  let regex = Unmanaged<NSRegularExpression>.fromOpaque(
-    sqlite3_user_data(context)).takeUnretainedValue()
-    let nsString = String(cString: text)
-    let range    = NSRange(nsString.startIndex..<nsString.endIndex, in: nsString)
-    let matches  = regex.firstMatch(in: nsString, range: range) != nil
-  sqlite3_result_int(context, matches ? 1 : 0)
-  },
+    db,
+    "REGEXP",
+    2,
+    SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+    context.toOpaque(),
+    { context, argc, argv in
+      guard let text = sqlite3_value_text(argv?[1]) else {
+        sqlite3_result_int(context, 0)
+        return
+      }
+      let regex = Unmanaged<NSRegularExpression>.fromOpaque(
+        sqlite3_user_data(context)).takeUnretainedValue()
+      let nsString = String(cString: text)
+      let range    = NSRange(nsString.startIndex..<nsString.endIndex, in: nsString)
+      let matches  = regex.firstMatch(in: nsString, range: range) != nil
+      sqlite3_result_int(context, matches ? 1 : 0)
+    },
     nil,
     nil
   )
@@ -247,11 +247,11 @@ func buildQuery() -> (String, [String]) {
 // MARK: - Message Processing
 func getColumnIndex(_ statement: OpaquePointer!, _ name: String) -> Int32 {
   (0..<sqlite3_column_count(statement))
-  .first { i in sqlite3_column_name(statement, i).map { String(cString: $0) } == name }
-  .map { Int32($0) } ?? {
-    fputs("Error: column '\(name)' not found\n", stderr)
-    exit(1)
-  }()
+    .first { i in sqlite3_column_name(statement, i).map { String(cString: $0) } == name }
+    .map { Int32($0) } ?? {
+      fputs("Error: column '\(name)' not found\n", stderr)
+      exit(1)
+    }()
 }
 
 struct MessageJSON: Codable {
@@ -309,46 +309,46 @@ func processMessage(statement: OpaquePointer, index: Int) -> String {
   return "" // We'll encode everything at the end
 
   /*
-  -- From: handle.id
-  -- Examples: "john@example.com", "+1234567890", "someone@icloud.com"
-  SELECT COALESCE(handle.id, '') as sender
+   -- From: handle.id
+   -- Examples: "john@example.com", "+1234567890", "someone@icloud.com"
+   SELECT COALESCE(handle.id, '') as sender
 
-  -- Service: handle.service
-  -- Examples: "iMessage", "SMS", "icloud.com"
-  SELECT COALESCE(handle.service, '') as service
+   -- Service: handle.service
+   -- Examples: "iMessage", "SMS", "icloud.com"
+   SELECT COALESCE(handle.service, '') as service
 
-  -- Chat Type: chat.style
-  -- 43 = Group chat
-  -- 45 = Individual chat
-  SELECT chat.style as chat_style
+   -- Chat Type: chat.style
+   -- 43 = Group chat
+   -- 45 = Individual chat
+   SELECT chat.style as chat_style
 
-  -- Chat Name: chat.display_name
-  -- Examples: "Family Group", "Work Team", "John and Bob"
-  -- NULL for individual chats unless manually named
-  SELECT chat.display_name as chat_name
+   -- Chat Name: chat.display_name
+   -- Examples: "Family Group", "Work Team", "John and Bob"
+   -- NULL for individual chats unless manually named
+   SELECT chat.display_name as chat_name
 
-  -- Participants: GROUP_CONCAT of handle.id for chat members
-  -- Examples: "bob@icloud.com,alice@example.com,+1234567890"
-  -- Comma-separated list of all participants except yourself
-  SELECT GROUP_CONCAT(DISTINCT other_handles.id) as participants
+   -- Participants: GROUP_CONCAT of handle.id for chat members
+   -- Examples: "bob@icloud.com,alice@example.com,+1234567890"
+   -- Comma-separated list of all participants except yourself
+   SELECT GROUP_CONCAT(DISTINCT other_handles.id) as participants
 
-  -- Message: combination of message.text and decoded_text
-  -- text: message.text
-  -- Example: "Hey, what's up?"
-  -- decoded_text: DECODE_ATTRIBUTED(message.attributedBody)
-  -- Example: "Meeting at 2pm 📅" (with emoji/formatting)
+   -- Message: combination of message.text and decoded_text
+   -- text: message.text
+   -- Example: "Hey, what's up?"
+   -- decoded_text: DECODE_ATTRIBUTED(message.attributedBody)
+   -- Example: "Meeting at 2pm 📅" (with emoji/formatting)
 
-  -- Matched In: our CASE statement result
-  -- Values: "text" or "attr"
-  -- Shows whether match was found in plain text or attributed text
-  CASE WHEN ... THEN 'text' ELSE 'attr' END as matched_in
+   -- Matched In: our CASE statement result
+   -- Values: "text" or "attr"
+   -- Shows whether match was found in plain text or attributed text
+   CASE WHEN ... THEN 'text' ELSE 'attr' END as matched_in
 
-  -- Attachments: message.cache_has_attachments
-  -- Values: 0 or 1
-  -- Indicates if message includes photos, files, etc.
-  SELECT decoded.cache_has_attachments
+   -- Attachments: message.cache_has_attachments
+   -- Values: 0 or 1
+   -- Indicates if message includes photos, files, etc.
+   SELECT decoded.cache_has_attachments
 
-  */
+   */
 
   //return """
   //  [\(index)] \(date) \(textAlert)
