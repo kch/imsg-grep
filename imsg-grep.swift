@@ -214,7 +214,7 @@ func buildQuery() -> (String, [String]) {
   }
   // Match messages where either sender or chat name matches pattern
   if let from = from {
-    conditions.append("(handle.id REGEXP ? OR chat.display_name REGEXP ?)")
+    conditions.append("(sender REGEXP ? OR chat.display_name REGEXP ?)")
     params.add(from)
     params.add(from)
   }
