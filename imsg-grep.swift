@@ -42,6 +42,20 @@ if contentPattern.isEmpty {
   exit(1)
 }
 
+class RegexCache {
+  static var patterns: [String: NSRegularExpression] = [:]
+
+  static func get(_ pattern: String) -> NSRegularExpression? {
+    if let existing = patterns[pattern] {
+      return existing
+    }
+    guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
+      return nil
+    }
+    patterns[pattern] = regex
+    return regex
+  }
+}
 // MARK: - SQLite Function Setup
 let searchPattern = useRawLike ?
   "%\(contentPattern.lowercased())%" :
@@ -61,16 +75,7 @@ struct QueryParams {
 }
 
 // Setup regexp and attributed text decoding functions
-func setupSQLiteFunctions(db: OpaquePointer, pattern: String) {
-  // Compile regex once
-  guard let compiledRegex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else {
-    fputs("Invalid regex pattern\n", stderr)
-    exit(1)
-  }
-
-  // Store regex in user context
-  let context = Unmanaged.passRetained(compiledRegex)
-  // fputs("Setting up SQLite functions...\n", stderr)
+func setupSQLiteFunctions(db: OpaquePointer) {
 
   // Regular expression matching
   sqlite3_create_function(
@@ -78,14 +83,18 @@ func setupSQLiteFunctions(db: OpaquePointer, pattern: String) {
     "REGEXP",
     2,
     SQLITE_UTF8 | SQLITE_DETERMINISTIC,
-    context.toOpaque(),
+    nil,
     { context, argc, argv in
-      guard let text = sqlite3_value_text(argv?[1]) else {
+      guard let pattern = sqlite3_value_text(argv?[0]),
+            let text = sqlite3_value_text(argv?[1]) else {
         sqlite3_result_int(context, 0)
         return
       }
-      let regex = Unmanaged<NSRegularExpression>.fromOpaque(
-        sqlite3_user_data(context)).takeUnretainedValue()
+      let patternStr = String(cString: pattern)
+      guard let regex = RegexCache.get(patternStr) else {
+        sqlite3_result_int(context, 0)
+        return
+      }
       let nsString = String(cString: text)
       let range    = NSRange(nsString.startIndex..<nsString.endIndex, in: nsString)
       let matches  = regex.firstMatch(in: nsString, range: range) != nil
@@ -380,7 +389,7 @@ guard sqlite3_open(homePath, &db) == SQLITE_OK,
 }
 defer { sqlite3_close(db) }
 
-setupSQLiteFunctions(db: db, pattern: contentPattern)
+setupSQLiteFunctions(db: db)
 
 let (query, params) = buildQuery()
 // fputs("\nQuery:\n\(query)\n", stderr)
