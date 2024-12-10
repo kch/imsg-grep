@@ -236,7 +236,7 @@ func buildQuery() -> (String, [String]) {
   }
 
   if !conditions.isEmpty {
-    baseQuery += " WHERE " + conditions.joined(separator: " AND ")
+    baseQuery += "\nWHERE " + conditions.joined(separator: " AND ")
   }
 
   baseQuery += """
