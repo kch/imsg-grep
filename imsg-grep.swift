@@ -147,17 +147,7 @@ func buildQuery() -> (String, [String]) {
       END as matched_in
     FROM message
     WHERE (associated_message_type IS NULL
-      OR associated_message_type < 2000)
-        -- ^^^  Exclude metadata/action messages:
-        -- associated_message_type: reaction
-        -- 2000: love
-        -- 2001: like
-        -- 2002: dislike
-        -- 2003: laugh
-        -- 2004: emphasize
-        -- 2005: question
-        -- 3000+, 4000 exist too
-        -- Main content matching conditions
+      OR associated_message_type < 2000) -- Exclude metadata/reaction messages
       AND (\(useRawLike ? "LOWER(text) LIKE ?" : "text REGEXP ?")
       OR (attributedBody IS NOT NULL
         AND length(attributedBody) > 0
@@ -425,3 +415,13 @@ let encoder = JSONEncoder()
 encoder.outputFormatting = [.prettyPrinted]
 print(String(data: try! encoder.encode(messages), encoding: .utf8)!)
 fputs("Found \(matchCount) matches in \(String(format: "%.3f", getTime() - start))s\n", stderr)
+
+
+//-- associated_message_type: reaction
+//-- 2000: love
+//-- 2001: like
+//-- 2002: dislike
+//-- 2003: laugh
+//-- 2004: emphasize
+//-- 2005: question
+//-- 3000+, 4000 exist too
