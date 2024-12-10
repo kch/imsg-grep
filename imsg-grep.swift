@@ -198,6 +198,7 @@ func buildQuery() -> (String, [String]) {
        ))
       """)
     params.add(to)
+    params.add(to)
   }
 
   // Match messages where sender handle matches pattern exactly
@@ -215,6 +216,7 @@ func buildQuery() -> (String, [String]) {
   if let from = from {
     conditions.append("(handle.id REGEXP ? OR chat.display_name REGEXP ?)")
     params.add(from)
+    params.add(from)
   }
 
   // Match messages where sender, chat name, or any participant matches pattern
@@ -228,6 +230,8 @@ func buildQuery() -> (String, [String]) {
          WHERE chj.chat_id = chat.ROWID AND h.id REGEXP ?
        ))
       """)
+    params.add(with)
+    params.add(with)
     params.add(with)
   }
 
