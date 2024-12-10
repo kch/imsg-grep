@@ -154,13 +154,13 @@ func buildQuery() -> (String, [String]) {
         AND \(useRawLike ? "LOWER(DECODE_ATTRIBUTED(attributedBody)) LIKE ?" : "DECODE_ATTRIBUTED(attributedBody) REGEXP ?")))
     )
     SELECT
-      decoded.ROWID                                                                as id,
-      datetime((decoded.date / 1000000000) + 978307200, 'unixepoch', 'localtime') as date,
-      COALESCE(handle.id, '')                                                     as sender,
-      COALESCE(handle.service, '')                                                as service,
-      chat.style                                                                  as chat_style,
-      chat.display_name                                                           as chat_name,
-      GROUP_CONCAT(DISTINCT other_handles.id)                                     as participants,
+      decoded.ROWID                                                  as id,
+      datetime((decoded.date / 1000000000) + 978307200, 'unixepoch') as date, -- `+978307200` adds seconds between Unix epoch (1970) and Cocoa epoch (2001)
+      COALESCE(handle.id, '')                                        as sender,
+      COALESCE(handle.service, '')                                   as service,
+      chat.style                                                     as chat_style,
+      chat.display_name                                              as chat_name,
+      GROUP_CONCAT(DISTINCT other_handles.id)                        as participants,
       decoded.text,
       decoded.decoded_text,
       decoded.matched_in,
