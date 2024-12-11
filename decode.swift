@@ -10,7 +10,7 @@
  *   sqlite3 chat.db "SELECT hex(attributedBody) FROM message WHERE ROWID = 126885;" | ./decode --hex
  */
 
- import Foundation
+import Foundation
 import ObjectiveC
 
 let args = CommandLine.arguments
