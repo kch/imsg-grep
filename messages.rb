@@ -132,7 +132,11 @@ db.execute <<~SQL
   GROUP BY c.id;
 SQL
 
-MESSAGES_QUERY = <<~SQL
+###
+
+MESSAGES_EXCLUSION = "(associated_message_type IS NULL OR associated_message_type < 2000)" # Exclude metadata/reaction messages
+
+MESSAGES_DECODED_QUERY = <<~SQL
   WITH chat_participants AS (
     SELECT
       chat_id,
@@ -143,34 +147,47 @@ MESSAGES_QUERY = <<~SQL
   )
   SELECT
     m.ROWID as id,
+    m.guid,
     IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle,
-    datetime((m.date / 1000000000) + 978307200, 'unixepoch') as utc_time,
-    c.style as chat_style,
-    c.display_name as chat_name,
-    CASE WHEN m.destination_caller_id IS NOT NULL
-      THEN json_insert(p.participant_handles, '$[#]', m.destination_caller_id)
-      ELSE p.participant_handles
-    END as participant_handles,
-    m.text                                 as text,
-    unarchive_attributed(m.attributedBody) as body,
-    m.cache_has_attachments                as has_attachments,
-    m.is_from_me,
-    m.associated_message_type,
-    m.attributedBody
+    IIF(m.destination_caller_id IS NOT NULL, json_insert(p.participant_handles, '$[#]', m.destination_caller_id), p.participant_handles) as participant_handles,
+    IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
+    IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload
   FROM messages_db.message m
   LEFT JOIN messages_db.handle h             ON m.handle_id = h.ROWID
   LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
   LEFT JOIN messages_db.chat c               ON cm.chat_id  = c.ROWID
   LEFT JOIN chat_participants p              ON c.ROWID     = p.chat_id
-  WHERE (associated_message_type IS NULL OR associated_message_type < 2000) -- Exclude metadata/reaction messages
+  WHERE #{MESSAGES_EXCLUSION}
 SQL
 
 time = Benchmark.measure do
-  db.execute "CREATE TABLE IF NOT EXISTS messages AS #{MESSAGES_QUERY}"
-  db.execute "INSERT INTO messages #{MESSAGES_QUERY} AND m.ROWID > (SELECT MAX(id) FROM messages)"
+  db.execute "CREATE TABLE IF NOT EXISTS messages_decoded AS #{MESSAGES_DECODED_QUERY}"
+  db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
 end
+puts "Messages decoded table update took: #{time.real.round(3)}s"
 
-puts "Messages table creation took: #{time.real.round(3)}s"
+
+MESSAGES_QUERY = <<~SQL
+  SELECT
+    m.ROWID as id,
+    d.guid,
+    d.sender_handle,
+    datetime((m.date / 1000000000) + 978307200, 'unixepoch') as utc_time,
+    c.style as chat_style,
+    c.display_name as chat_name,
+    d.participant_handles,
+    d.text_decoded,
+    COALESCE(m.text, d.text_decoded, '') as computed_text,
+    d.payload,
+    m.cache_has_attachments as has_attachments,
+    m.is_from_me
+  FROM messages_db.message m
+  LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
+  LEFT JOIN messages_db.chat c               ON cm.chat_id  = c.ROWID
+  LEFT JOIN messages_decoded d               ON m.ROWID     = d.id
+  WHERE #{MESSAGES_EXCLUSION}
+SQL
+db.execute "CREATE TEMP VIEW messages AS #{MESSAGES_QUERY}"
 
 
 time = Benchmark.measure do
@@ -182,7 +199,7 @@ time = Benchmark.measure do
        FROM contact_details WHERE handle = sender_handle) as sender_name,
       chat_style,
       chat_name,
-      coalesce(text, body) as computed_text,
+      computed_text,
       -- text,
       -- body,
       -- participants,
