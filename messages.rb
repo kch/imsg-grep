@@ -147,10 +147,9 @@ WITH chat_participants AS (
 )
 SELECT
   m.ROWID as id,
+  IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle,
   COALESCE(
-    (SELECT contact
-      FROM contact_details
-      WHERE handle = IIF(m.is_from_me, m.destination_caller_id, h.id)),
+    (SELECT contact FROM contact_details WHERE handle = IIF(m.is_from_me, m.destination_caller_id, h.id)),
     json_object('handle', IIF(m.is_from_me, m.destination_caller_id, h.id))
   ) as sender,
   datetime((m.date / 1000000000) + 978307200, 'unixepoch')              as utc_date,
@@ -170,7 +169,6 @@ LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
 LEFT JOIN messages_db.chat c               ON cm.chat_id  = c.ROWID
 LEFT JOIN chat_participants p              ON c.ROWID     = p.chat_id
 WHERE (associated_message_type IS NULL OR associated_message_type < 2000) -- Exclude metadata/reaction messages
--- AND h.id LIKE 'VIVO'
   AND utc_date > datetime('now', '-369 days')
 SQL
 end
@@ -205,6 +203,7 @@ time = Benchmark.measure do
       -- AND has_attachments = 0
       -- AND (computed_text IS NOT NULL AND computed_text REGEXP 'https?://(www.)?youtu')
       -- AND (body IS NOT NULL AND body REGEXP 'https?://')
+      AND sender_handle IN (SELECT value FROM contact_lookup, json_each(handles) WHERE searchable REGEXP 'reg|and')
     ORDER BY utc_date DESC
     LIMIT 10
   SQL
