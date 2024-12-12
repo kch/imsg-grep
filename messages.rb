@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+require 'fileutils'
 require 'sqlite3'
 require 'ffi'
 require 'benchmark'
@@ -27,8 +28,10 @@ end
 
 CONTACTS_DB = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
 MESSAGES_DB = Dir[File.expand_path("~/Library/Messages/chat.db")][0]
+CACHE_DB    = File.expand_path("~/.cache/imsg-grep/chat.db")
+FileUtils.mkdir_p File.dirname(CACHE_DB)
 
-db = SQLite3::Database.new(":memory:", { encoding: "utf-8" })
+db = SQLite3::Database.new(CACHE_DB, { encoding: "utf-8" })
 db.execute("ATTACH DATABASE '#{CONTACTS_DB}' AS contacts_db; PRAGMA contacts_db.readonly = ON")
 db.execute("ATTACH DATABASE '#{MESSAGES_DB}' AS messages_db; PRAGMA messages_db.readonly = ON")
 
@@ -43,6 +46,7 @@ db.create_function("unarchive_attributed", 1) { |f, text| f.result = NSAttribute
 # name    | "John Smith"
 # emails  | ["john@gmail.com", "john@work.com"]
 # numbers | ["+14155551212", "+14155551213"]
+db.execute "DROP TABLE IF EXISTS contacts;"
 db.execute <<-SQL
   CREATE TABLE contacts AS
   WITH emails AS (
@@ -66,6 +70,7 @@ SQL
 # maps message handles to contact IDs:
 # handle_id | "+14155551212"
 # contact_id| 42
+db.execute "DROP TABLE IF EXISTS handle_contacts;"
 db.execute <<-SQL
   CREATE TABLE handle_contacts AS
   WITH all_handles AS (
@@ -92,7 +97,7 @@ db.execute "CREATE INDEX idx_handle_contacts ON handle_contacts(handle_id)"
 #          |   "emails":  ["john@gmail.com", "john@work.com"],
 #          |   "numbers": ["+14155551212", "+14155551213"] }
 db.execute <<~SQL
-  CREATE VIEW contact_details AS
+  CREATE TEMP VIEW contact_details AS
   SELECT
     h.handle_id as handle,
     json_object(
@@ -110,7 +115,7 @@ SQL
 # searchable | ["John Smith", "john@gmail.com", "john@work.com", "+14155551212", "+14155551213"]
 # details    | { "name": "John Smith", "emails": ["john@gmail.com", "john@work.com"], "numbers": ["+14155551212", "+14155551213"] }
 db.execute <<~SQL
-  CREATE VIEW contact_lookup AS
+  CREATE TEMP VIEW contact_lookup AS
   SELECT
     c.id as contact_id,
     json_group_array(h.handle_id) as handles,
@@ -125,63 +130,54 @@ db.execute <<~SQL
   GROUP BY c.id;
 SQL
 
-
-
-# exit
+MESSAGES_QUERY = <<~SQL
+  WITH chat_participants AS (
+    SELECT
+      chat_id,
+      json_group_array(h.id) as participant_handles
+    FROM messages_db.chat_handle_join chj
+    JOIN messages_db.handle h ON chj.handle_id = h.ROWID
+    GROUP BY chat_id
+  )
+  SELECT
+    m.ROWID as id,
+    IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle,
+    datetime((m.date / 1000000000) + 978307200, 'unixepoch') as utc_time,
+    c.style as chat_style,
+    c.display_name as chat_name,
+    CASE WHEN m.destination_caller_id IS NOT NULL
+      THEN json_insert(p.participant_handles, '$[#]', m.destination_caller_id)
+      ELSE p.participant_handles
+    END as participant_handles,
+    m.text                                 as text,
+    unarchive_attributed(m.attributedBody) as body,
+    m.cache_has_attachments                as has_attachments,
+    m.is_from_me,
+    m.associated_message_type,
+    m.attributedBody
+  FROM messages_db.message m
+  LEFT JOIN messages_db.handle h             ON m.handle_id = h.ROWID
+  LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
+  LEFT JOIN messages_db.chat c               ON cm.chat_id  = c.ROWID
+  LEFT JOIN chat_participants p              ON c.ROWID     = p.chat_id
+  WHERE (associated_message_type IS NULL OR associated_message_type < 2000) -- Exclude metadata/reaction messages
+SQL
 
 time = Benchmark.measure do
-db.execute <<-SQL
-CREATE TABLE messages AS
-WITH chat_participants AS (
-  SELECT
-    chat_id,
-    json_group_array(
-      COALESCE(
-        (SELECT json(contact) FROM contact_details WHERE handle = h.id),
-        json_object('handle', h.id)
-      )
-    ) as participants
-  FROM messages_db.chat_handle_join chj
-  JOIN messages_db.handle h ON chj.handle_id = h.ROWID
-  GROUP BY chat_id
-)
-SELECT
-  m.ROWID as id,
-  IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle,
-  COALESCE(
-    (SELECT contact FROM contact_details WHERE handle = IIF(m.is_from_me, m.destination_caller_id, h.id)),
-    json_object('handle', IIF(m.is_from_me, m.destination_caller_id, h.id))
-  ) as sender,
-  datetime((m.date / 1000000000) + 978307200, 'unixepoch')              as utc_date,
-  datetime((m.date / 1000000000) + 978307200, 'unixepoch', 'localtime') as local_date,
-  c.style                                as chat_style,
-  c.display_name                         as chat_name,
-  p.participants                         as participants,
-  m.text                                 as text,
-  unarchive_attributed(m.attributedBody) as body,
-  m.cache_has_attachments                as has_attachments,
-  m.is_from_me,
-  m.associated_message_type,
-  m.attributedBody
-FROM messages_db.message m
-LEFT JOIN messages_db.handle h             ON m.handle_id = h.ROWID
-LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
-LEFT JOIN messages_db.chat c               ON cm.chat_id  = c.ROWID
-LEFT JOIN chat_participants p              ON c.ROWID     = p.chat_id
-WHERE (associated_message_type IS NULL OR associated_message_type < 2000) -- Exclude metadata/reaction messages
-  AND utc_date > datetime('now', '-369 days')
-SQL
+  db.execute "CREATE TABLE IF NOT EXISTS messages AS #{MESSAGES_QUERY}"
+  db.execute "INSERT INTO messages #{MESSAGES_QUERY} AND m.ROWID > (SELECT MAX(id) FROM messages)"
 end
+
 puts "Messages table creation took: #{time.real.round(3)}s"
 
 
 time = Benchmark.measure do
   print_query(db, <<~SQL)
     SELECT
-      -- utc_date,
-      local_date,
+      datetime(utc_time, 'localtime') as local_time,
       is_from_me,
-      COALESCE(json_extract(sender, '$.name'), json_extract(sender, '$.handle')) as sender_name,
+      (SELECT COALESCE(json_extract(contact, '$.name'), sender_handle)
+       FROM contact_details WHERE handle = sender_handle) as sender_name,
       chat_style,
       chat_name,
       coalesce(text, body) as computed_text,
@@ -191,20 +187,27 @@ time = Benchmark.measure do
       -- json_pretty(participants) as participants,
       (
         SELECT json_group_array(
-          COALESCE(json_extract(value, '$.name'), json_extract(value, '$.handle'))
+          COALESCE(
+            (SELECT json_extract(contact, '$.name') FROM contact_details WHERE handle = value),
+            value
+          )
         )
-        FROM json_each(participants)
+        FROM json_each(participant_handles)
       ) as participant_names,
       '' as ''
     FROM messages
     WHERE 1=1
-    -- A (associated_message_type IS NULL OR associated_message_type < 2000) -- Exclude metadata/reaction messages
+
+      AND (computed_text IS NOT NULL AND computed_text REGEXP 'https?://(www.)?youtu')
     -- AND (text IS  NULL AND attributedBody IS  NULL)
       -- AND has_attachments = 0
-      -- AND (computed_text IS NOT NULL AND computed_text REGEXP 'https?://(www.)?youtu')
       -- AND (body IS NOT NULL AND body REGEXP 'https?://')
-      AND sender_handle IN (SELECT value FROM contact_lookup, json_each(handles) WHERE searchable REGEXP 'reg|and')
-    ORDER BY utc_date DESC
+      -- AND sender_handle IN (SELECT value FROM contact_lookup, json_each(handles) WHERE searchable REGEXP 'reg|and')
+      AND  EXISTS (
+        SELECT 1 FROM json_each(participant_handles) p
+        WHERE p.value IN (
+          SELECT value FROM contact_lookup c, json_each(c.handles) WHERE c.searchable REGEXP 'reg|and'))
+    ORDER BY utc_time DESC
     LIMIT 10
   SQL
 end
