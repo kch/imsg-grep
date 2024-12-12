@@ -14,15 +14,11 @@ def print_query(db, sql)
       cols = row
       next
     end
+    width = cols.map(&:length).max
 
     row.each_with_index do |val, i|
       val = val.nil? ? "NULL" : val.to_s
-      if val.include?("\n")
-        puts "\n#{cols[i]}:"
-        puts val.gsub(/^/, "  ")
-      else
-        puts "#{cols[i].ljust(15)}: #{val}"
-      end
+      puts "#{cols[i].ljust(width, ' ')} : #{val.gsub("\n", "\n   " + ' ' * width)}"
     end
     puts "-" * 80
   end
