@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 require 'fileutils'
 require 'sqlite3'
+require 'json'
 require 'ffi'
 require 'benchmark'
 require_relative 'lib/keyed_archive'
@@ -38,6 +39,7 @@ db.execute("ATTACH DATABASE '#{MESSAGES_DB}' AS messages_db; PRAGMA messages_db.
 REGEX_CACHE = Hash.new { |h,k| h[k] = Regexp.new(k, Regexp::IGNORECASE) }
 db.create_function("regexp", 2)               { |f, rx, text| f.result = REGEX_CACHE[rx].match?(text) ? 1 : 0 }
 db.create_function("plusdigits", 1)           { |f, text| f.result = text.delete("^0-9+") }
+db.create_function("unarchive_keyed", 1)      { |f, text| f.result = NSKeyedArchive.unarchive(text).to_json }
 db.create_function("unarchive_attributed", 1) { |f, text| f.result = NSAttributedString.unarchive text }
 # db.create_function("describe_attributed", 1)  { |f, text| f.result = NSAttributedString.describe text }
 
