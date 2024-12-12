@@ -234,8 +234,86 @@ end
 puts "\nQuery took: #{time.real.round(3)}s"
 
 
-# db.execute("CREATE INDEX idx_contacts_numbers          ON contacts(numbers)")
-# db.execute("CREATE INDEX idx_contacts_emails           ON contacts(emails)")
-# db.execute("CREATE INDEX idx_contacts_by_handle_handle ON contacts_by_handle(handle)")
-# db.execute("CREATE INDEX idx_messages_utc_date         ON messages(utc_date DESC)")
-# db.execute("CREATE INDEX idx_messages_chat             ON messages(chat_name)")
+def print_message_details(db, msg_id)
+  print_query(db, <<~SQL)
+    SELECT
+      -- Core identifiers
+      m.id,
+      m.guid,
+
+      -- Timing
+      m.utc_time,
+
+      -- Chat context
+      m.chat_style,
+      m.chat_name,
+
+      -- Message content
+      m.sender_handle,
+      m.participant_handles,
+      (SELECT COALESCE(json_extract(contact, '$.name'), m.sender_handle)
+       FROM contact_details WHERE handle = m.sender_handle) as sender_name,
+
+      (SELECT json_group_array(COALESCE(
+         (SELECT json_extract(contact, '$.name') FROM contact_details WHERE handle = value),
+         value
+       ))
+       FROM json_each(m.participant_handles)
+      ) as participant_names,
+      m.computed_text,
+      m.payload,
+      m.has_attachments,
+      m.is_from_me,
+      orig.text,
+      m.text_decoded,
+
+      -- Raw message fields
+      orig.subject,
+      orig.service,
+      orig.account,
+      orig.date,
+      orig.date_read,
+      orig.date_delivered,
+      HEX(orig.attributedBody) as attributedBody_hex,
+      HEX(orig.payload_data) as payload_data_hex,
+
+      -- Status flags
+      orig.is_delivered,
+      orig.is_finished,
+      orig.is_emote,
+      orig.is_delayed,
+      orig.is_auto_reply,
+      orig.is_prepared,
+      orig.is_read,
+      orig.is_system_message,
+      orig.is_sent,
+      orig.is_forward,
+      orig.is_service_message,
+      orig.is_spam,
+      orig.error,
+
+      -- Thread/Reply
+      orig.thread_originator_guid,
+      orig.thread_originator_part,
+      orig.reply_to_guid,
+
+      -- Metadata
+      orig.version,
+      orig.sort_id,
+      orig.share_status,
+      orig.share_direction,
+      orig.group_action_type,
+      orig.associated_message_type,
+      orig.associated_message_guid,
+      orig.destination_caller_id
+
+    FROM messages m
+    JOIN messages_db.message orig ON m.id = orig.ROWID
+    WHERE m.id = #{msg_id}
+  SQL
+end
+
+if __FILE__ == $0 && ARGV[0]
+  msg_id = ARGV[0].to_i
+  print_message_details(db, msg_id)
+end
