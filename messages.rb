@@ -28,7 +28,7 @@ end
 CONTACTS_DB = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
 MESSAGES_DB = Dir[File.expand_path("~/Library/Messages/chat.db")][0]
 
-db = SQLite3::Database.new(":memory:")
+db = SQLite3::Database.new(":memory:", { encoding: "utf-8" })
 db.execute("ATTACH DATABASE '#{CONTACTS_DB}' AS contacts_db; PRAGMA contacts_db.readonly = ON")
 db.execute("ATTACH DATABASE '#{MESSAGES_DB}' AS messages_db; PRAGMA messages_db.readonly = ON")
 
