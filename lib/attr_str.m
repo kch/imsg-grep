@@ -4,14 +4,14 @@
 Decodes NSAttributedString binary data.
 
 Library usage:
-  clang -shared -framework Foundation -o decode_attr.dylib decode_attr.m
+  clang -shared -framework Foundation -o attr_str.dylib attr_str.m
 
 Test binary usage:
-  clang -DMAIN_EXECUTABLE -framework Foundation -o decode_attr decode_attr.m
-  cat attributed.data | ./decode_attr
+  clang -DMAIN_EXECUTABLE -framework Foundation -o attr_str attr_str.m
+  cat attributed.data | ./attr_str
 */
 
-static NSAttributedString* decode_data(const void* data, size_t len) {
+static NSAttributedString* unarchive(const void* data, size_t len) {
   NSData *nsdata = [NSData dataWithBytes:data length:len];
 
   #pragma clang diagnostic push
@@ -26,13 +26,13 @@ static char* string_to_cstr(NSString* str) {
   return utf8 ? strdup(utf8) : NULL;
 }
 
-char* decode_attributed_string(const void* data, size_t len) {
-  NSAttributedString *str = decode_data(data, len);
+char* attributed_string_unarchive(const void* data, size_t len) {
+  NSAttributedString *str = unarchive(data, len);
   return string_to_cstr([str string]);
 }
 
-char* describe_attributed_string(const void* data, size_t len) {
-  NSAttributedString *str = decode_data(data, len);
+char* attributed_string_describe(const void* data, size_t len) {
+  NSAttributedString *str = unarchive(data, len);
   return string_to_cstr([str description]);
 }
 
@@ -42,13 +42,13 @@ int main(void) {
   NSFileHandle *stdin = [NSFileHandle fileHandleWithStandardInput];
   NSData *input = [stdin readDataToEndOfFile];
 
-  char *decoded = decode_attributed_string([input bytes], [input length]);
-  char *desc    = describe_attributed_string([input bytes], [input length]);
+  char *attr_str = attributed_string_unarchive([input bytes], [input length]);
+  char *desc     = attributed_string_describe([input bytes], [input length]);
 
-  printf("Decoded: %s\n", decoded ?: "null");
+  printf("Decoded: %s\n", attr_str ?: "null");
   printf("Description: %s\n", desc ?: "null");
 
-  free(decoded);
+  free(attr_str);
   free(desc);
   return 0;
 }

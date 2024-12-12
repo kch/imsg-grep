@@ -1,15 +1,15 @@
 CC      = clang
 CFLAGS  = -framework Foundation
 
-lib: lib/decode_attr.dylib
+lib: lib/attr_str.dylib
 
-bin: lib/decode_attr
+bin: lib/attr_str
 
-lib/decode_attr.dylib: lib/decode_attr.m
+lib/attr_str.dylib: lib/attr_str.m
 	$(CC) -shared $(CFLAGS) -o $@ $<
 
-lib/decode_attr: lib/decode_attr.m
+lib/attr_str: lib/attr_str.m
 	$(CC) -DMAIN_EXECUTABLE $(CFLAGS) -o $@ $<
 
 clean:
-	rm -f lib/decode_attr.dylib lib/decode_attr
+	rm -f lib/attr_str.dylib lib/attr_str

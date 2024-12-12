@@ -1,6 +1,6 @@
 # test files
 dat/
 
-# decoder products
-lib/decode_attr
-lib/decode_attr.dylib
+# unarchiver products
+lib/attr_str
+lib/attr_str.dylib
