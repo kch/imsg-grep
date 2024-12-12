@@ -1,2 +1,6 @@
+# test files
+dat/
+
+# decoder products
 lib/decode_attr
 lib/decode_attr.dylib
