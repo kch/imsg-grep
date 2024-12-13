@@ -5,6 +5,7 @@ require_relative '../lib/print_query'
 time = Benchmark.measure do
   print_query($db, <<~SQL)
     SELECT
+      id,
       datetime(utc_time, 'localtime') as local_time,
       is_from_me,
       (SELECT COALESCE(json_extract(contact, '$.name'), sender_handle)
