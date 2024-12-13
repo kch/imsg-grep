@@ -11,6 +11,7 @@ CONTACTS_DB = Dir[File.expand_path("~/Library/Application Support/AddressBook/So
 MESSAGES_DB = Dir[File.expand_path("~/Library/Messages/chat.db")][0]
 CACHE_DB    = File.expand_path("~/.cache/imsg-grep/chat.db")
 FileUtils.mkdir_p File.dirname(CACHE_DB)
+FileUtils.touch(CACHE_DB)
 
 [CONTACTS_DB, MESSAGES_DB, CACHE_DB].each do |db|
   raise "Database not found: #{db}" unless File.exist?(db)
