@@ -11,16 +11,13 @@ class NSKeyedArchive
 
   def initialize(data, strip_meta: false)
     data = xml_from_binary_plist data if data.start_with?("bplist")
-    return @data = nil unless data.start_with?("<?xml", "<plist")
-
+    raise "no xml" unless data.start_with?("<?xml", "<plist")
     @data       = Plist.parse_xml(data)
     @objects    = @data["$objects"]
     @strip_meta = strip_meta
   end
 
   def unarchive
-    return { "_ERROR": "BAD DATA" } if data.nil?
-
     top = @data["$top"]
     return parse_object(top["root"]) if top["root"]
 
