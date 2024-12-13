@@ -120,7 +120,12 @@ SQL
 
 ###
 
-MESSAGES_EXCLUSION = "(associated_message_type IS NULL OR associated_message_type < 2000)" # Exclude metadata/reaction messages
+MESSAGES_EXCLUSION = <<~SQL
+  (
+    (associated_message_type IS NULL OR associated_message_type < 2000)  -- # Exclude metadata/reaction messages
+    AND (balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider')   -- # Digital touch lol; another check: substr(hex(payload_data), 1, 8) = '08081100'
+  )
+SQL
 
 MESSAGES_DECODED_QUERY = <<~SQL
   WITH chat_participants AS (
