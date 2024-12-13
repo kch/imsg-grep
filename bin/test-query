@@ -1,0 +1,46 @@
+#!/usr/bin/env ruby
+require_relative '../lib/messages'
+require_relative '../lib/print_query'
+
+time = Benchmark.measure do
+  print_query($db, <<~SQL)
+    SELECT
+      datetime(utc_time, 'localtime') as local_time,
+      is_from_me,
+      (SELECT COALESCE(json_extract(contact, '$.name'), sender_handle)
+       FROM contact_details WHERE handle = sender_handle) as sender_name,
+      chat_style,
+      chat_name,
+      computed_text,
+      -- text,
+      -- body,
+      -- participants,
+      -- json_pretty(participants) as participants,
+      (
+        SELECT json_group_array(
+          COALESCE(
+            (SELECT json_extract(contact, '$.name') FROM contact_details WHERE handle = value),
+            value
+          )
+        )
+        FROM json_each(participant_handles)
+      ) as participant_names,
+      '' as ''
+    FROM messages
+    WHERE 1=1
+
+      AND (computed_text IS NOT NULL AND computed_text REGEXP 'https?://(www.)?youtu')
+    -- AND (text IS  NULL AND attributedBody IS  NULL)
+      -- AND has_attachments = 0
+      -- AND (body IS NOT NULL AND body REGEXP 'https?://')
+      -- AND sender_handle IN (SELECT value FROM contact_lookup, json_each(handles) WHERE searchable REGEXP 'reg|and')
+      AND  EXISTS (
+        SELECT 1 FROM json_each(participant_handles) p
+        WHERE p.value IN (
+          SELECT value FROM contact_lookup c, json_each(c.handles) WHERE c.searchable REGEXP 'reg|and'))
+    ORDER BY utc_time DESC
+    LIMIT 10
+  SQL
+end
+
+puts "\nQuery took: #{time.real.round(3)}s"
