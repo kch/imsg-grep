@@ -26,6 +26,7 @@ REGEX_CACHE = Hash.new { |h,k| h[k] = Regexp.new(k, Regexp::IGNORECASE) }
 $db.create_function("regexp", 2)               { |f, rx, text| f.result = REGEX_CACHE[rx].match?(text) ? 1 : 0 }
 $db.create_function("plusdigits", 1)           { |f, text| f.result = text.delete("^0-9+") }
 $db.create_function("unarchive_keyed", 1)      { |f, text| f.result = NSKeyedArchive.unarchive(text).to_json }
+$db.create_function("unarchive_keyed_strip", 1){ |f, text| f.result = NSKeyedArchive.unarchive(text, strip_meta: true).to_json }
 $db.create_function("unarchive_attributed", 1) { |f, text| f.result = NSAttributedString.unarchive text }
 # $db.create_function("describe_attributed", 1)  { |f, text| f.result = NSAttributedString.describe text }
 
@@ -142,7 +143,8 @@ MESSAGES_DECODED_QUERY = <<~SQL
     IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle,
     IIF(m.destination_caller_id IS NOT NULL, json_insert(p.participant_handles, '$[#]', m.destination_caller_id), p.participant_handles) as participant_handles,
     IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
-    IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload
+    IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload,
+    IIF(m.payload_data IS NOT NULL, unarchive_keyed_strip(payload_data), NULL) as strip_payload_data
   FROM messages_db.message m
   LEFT JOIN messages_db.handle h             ON m.handle_id = h.ROWID
   LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
