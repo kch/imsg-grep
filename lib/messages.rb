@@ -157,7 +157,7 @@ time = Benchmark.measure do
   $db.execute "CREATE TABLE IF NOT EXISTS messages_decoded AS #{MESSAGES_DECODED_QUERY}"
   $db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
 end
-# puts "Messages decoded table update took: #{time.real.round(3)}s"
+puts "Messages decoded table update took: #{time.real.round(3)}s"
 
 
 MESSAGES_QUERY = <<~SQL
