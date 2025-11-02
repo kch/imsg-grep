@@ -141,6 +141,7 @@ MESSAGES_DECODED_QUERY = <<~SQL
     m.ROWID as id,
     m.guid,
     IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle,
+    datetime((m.date / 1000000000) + 978307200, 'unixepoch') as utc_time,
     IIF(m.destination_caller_id IS NOT NULL, json_insert(p.participant_handles, '$[#]', m.destination_caller_id), p.participant_handles) as participant_handles,
     IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
     IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload,
