@@ -43,6 +43,10 @@ class NSKeyedArchive
       keys   = obj["NS.keys"   ].map { parse_object _1 }
       values = obj["NS.objects"].map { parse_object _1 }
       keys.zip(values).to_h
+    when "NSURL"
+      result = obj.transform_values { |v| parse_object(v) }
+      result = result["NS.relative"] if @strip_meta && result["NS.base"].nil?
+      result
     else
       result = obj.transform_values { |v| parse_object(v) }
       @strip_meta ? result.except("$class", "$classes") : result
