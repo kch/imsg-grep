@@ -19,10 +19,7 @@ module BPList
     end
   end
 
-  # Read multi-byte integer from data at position
-  def self.read_int(data, pos, size)
-    read_big_endian_int(data, pos, size)
-  end
+
 
   # Get count/length (handles 0xF continuation)
   def self.get_count(data, pos, low)
@@ -104,7 +101,7 @@ module BPList
           # Ruby handles big integers automatically
           (high << 64) | low
         else
-          value = read_int(data, pos + 1, byte_count)
+          value = read_big_endian_int(data, pos + 1, byte_count)
           # Per Apple spec: only 8+ byte integers are signed, 1/2/4 byte are unsigned
           if byte_count >= 8 && value >= (1 << (byte_count * 8 - 1))
             value - (1 << (byte_count * 8))
@@ -161,25 +158,25 @@ module BPList
       when 0x8  # UID
         byte_count = low + 1
         raise "Position #{pos + 1} + #{byte_count} beyond data size" if pos + 1 + byte_count > data.bytesize
-        {uid: read_int(data, pos + 1, byte_count)}
+        {uid: read_big_endian_int(data, pos + 1, byte_count)}
 
       when 0xA  # Array
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size} beyond data size" if start + count * objref_size > data.bytesize
-        refs         = Array.new(count) { |i| read_int(data, start + i * objref_size, objref_size) }
+        refs         = Array.new(count) { |i| read_big_endian_int(data, start + i * objref_size, objref_size) }
         refs.map { |ref| parse_object.call(ref) }
 
       when 0xC  # Set
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size} beyond data size" if start + count * objref_size > data.bytesize
-        refs         = Array.new(count) { |i| read_int(data, start + i * objref_size, objref_size) }
+        refs         = Array.new(count) { |i| read_big_endian_int(data, start + i * objref_size, objref_size) }
         Set.new(refs.map { |ref| parse_object.call(ref) })
 
       when 0xD  # Dict
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size * 2} beyond data size" if start + count * objref_size * 2 > data.bytesize
-        key_refs     = Array.new(count) { |i| read_int(data, start + i * objref_size, objref_size) }
-        val_refs     = Array.new(count) { |i| read_int(data, start + (count + i) * objref_size, objref_size) }
+        key_refs     = Array.new(count) { |i| read_big_endian_int(data, start + i * objref_size, objref_size) }
+        val_refs     = Array.new(count) { |i| read_big_endian_int(data, start + (count + i) * objref_size, objref_size) }
         key_refs.zip(val_refs).to_h { |k, v| [parse_object.call(k), parse_object.call(v)] }
 
       else
