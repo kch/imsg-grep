@@ -220,75 +220,35 @@ module BPList
     end
   end
 
-  def self.transform_ns_objects(obj)
+  def self.decode_objects(obj)
     case obj
     when Hash
-      # Stage 3: Transform NSArray and $null values
-      if obj["$class"] && obj["$class"]["$classname"]
-        case obj["$class"]["$classname"]
-        when "NSArray"
-          # Use contents of NS.objects as the value
-          return obj["NS.objects"] ? obj["NS.objects"].map { |item| transform_ns_objects(item) } : []
-        when "NSDictionary"
-          # Transform NS.keys and NS.objects into a hash (ordered pairs)
-          if obj["NS.keys"] && obj["NS.objects"]
-            result = {}
-            keys = obj["NS.keys"]
-            values = obj["NS.objects"]
-            keys.each_with_index do |key, index|
-              if index < values.length
-                result[key] = transform_ns_objects(values[index])
-              end
-            end
-            return result
-          else
-            # Fallback to regular hash transformation
-            result = {}
-            obj.each { |k, v| result[k] = transform_ns_objects(v) }
-            return result
-          end
-        when "NSURL"
-          # If NS.base is $null, use NS.relative value
-          if obj["NS.base"] == "$null" && obj["NS.relative"]
-            return obj["NS.relative"]
-          else
-            # Don't transform if NS.base is not $null
-            result = {}
-            obj.each { |k, v| result[k] = transform_ns_objects(v) }
-            return result
-          end
-        end
+    # Stage 3: Transform NSArray and $null values
+      case obj.dig("$class", "$classname")
+      in "NSArray" if obj.key? "NS.objects"
+        obj["NS.objects"].map { |item| decode_objects(item) }
+
+      in "NSDictionary" if obj.key?("NS.keys") && obj.key?("NS.objects")
+        obj["NS.keys"].zip(obj["NS.objects"].map{ decode_objects it }).to_h
+
+      in "NSURL" if obj["NS.base"] == "$null" && obj["NS.relative"]
+        obj["NS.relative"]
+      else
+        obj.transform_values { decode_objects it }
       end
 
-      # Regular hash, transform all values
-      result = {}
-      obj.each { |k, v| result[k] = transform_ns_objects(v) }
-      return result
-    when Array
-      obj.map { |item| transform_ns_objects(item) }
-    when "$null"
-      # Transform $null strings to actual null
-      nil
-    when String
-      # Transform binary data to Base64
-      # detect if string is binary (ASCII-8BIT) or invalid UTF-8
-      if obj.encoding == Encoding::ASCII_8BIT
-        return Base64.strict_encode64(obj)
+    when Array  then obj.map { |item| decode_objects(item) }
+    when "$null" then nil  # Transform $null strings to actual null
+
+    when String # Transform binary data to Base64 ; detect if string is binary (ASCII-8BIT) or invalid UTF-8
+      case
+      when obj.encoding == Encoding::BINARY then Base64.strict_encode64(obj)
+      when obj.force_encoding('UTF-8').valid_encoding? then obj
+      when obj.force_encoding('BINARY') then Base64.strict_encode64(obj)
+      else raise
       end
 
-      begin
-        obj.force_encoding('UTF-8')
-        if !obj.valid_encoding?
-          obj.force_encoding('ASCII-8BIT')
-          return Base64.strict_encode64(obj)
-        end
-      rescue
-        obj.force_encoding('ASCII-8BIT')
-        return Base64.strict_encode64(obj)
-      end
-      obj
-    else
-      obj
+    else obj
     end
   end
 
@@ -321,7 +281,7 @@ if __FILE__ == $0
     # Extract and transform root object
     root_object = parsed_bplist["$objects"][1]
     expanded_object = BPList.expand_uids(root_object, parsed_bplist["$objects"])
-    transformed_object = BPList.transform_ns_objects(expanded_object)
+    transformed_object = BPList.decode_objects(expanded_object)
 
     # Parse payload JSON
     payload_parsed = JSON.parse(payload_json) if payload_json
