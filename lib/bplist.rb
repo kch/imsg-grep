@@ -1,14 +1,27 @@
 require 'set'
 
 module BPList
+  # Read big-endian integer from data at position
+  def self.read_big_endian_int(data, pos, size)
+    raise "Position #{pos} + #{size} beyond data size" if pos + size > data.bytesize
+    case size
+    when 1 then data[pos].unpack1("C")
+    when 2 then data[pos, 2].unpack1("n")
+    when 4 then data[pos, 4].unpack1("N")
+    when 8 then data[pos, 8].unpack1("Q>")
+    else
+      # Fallback for other sizes
+      bytes = data[pos, size].unpack("C*")
+      bytes.reduce(0) { |a, b|
+        raise "nil value in read_int: a=#{a.inspect}, b=#{b.inspect}" if a.nil? || b.nil?
+        (a << 8) | b
+      }
+    end
+  end
+
   # Read multi-byte integer from data at position
   def self.read_int(data, pos, size)
-    raise "Position #{pos} + #{size} beyond data size" if pos + size > data.bytesize
-    bytes = data[pos, size].unpack("C*")
-    bytes.reduce(0) { |a, b|
-      raise "nil value in read_int: a=#{a.inspect}, b=#{b.inspect}" if a.nil? || b.nil?
-      (a << 8) | b
-    }
+    read_big_endian_int(data, pos, size)
   end
 
   # Get count/length (handles 0xF continuation)
@@ -21,12 +34,7 @@ module BPList
     raise "Invalid count marker" unless int_high == 0x1
 
     byte_count = 1 << (int_marker & 0x0F)
-    raise "Position #{pos + 2} + #{byte_count} beyond data size" if pos + 2 + byte_count > data.bytesize
-    bytes = data[pos + 2, byte_count].unpack("C*")
-    count = bytes.reduce(0) { |a, b|
-      raise "nil value in get_count: a=#{a.inspect}, b=#{b.inspect}" if a.nil? || b.nil?
-      (a << 8) | b
-    }
+    count = read_big_endian_int(data, pos + 2, byte_count)
     [count, pos + 2 + byte_count]
   end
 
@@ -47,11 +55,7 @@ module BPList
     # Read offset table
     offsets = (0...num_objects).map do |i|
       pos = offset_table_pos + i * offset_int_size
-      bytes = data[pos, offset_int_size].unpack("C*")
-      bytes.reduce(0) { |a, b|
-        raise "nil value in offset calculation" if a.nil? || b.nil?
-        (a << 8) | b
-      }
+      read_big_endian_int(data, pos, offset_int_size)
     end
 
     # Parse objects recursively
@@ -91,10 +95,8 @@ module BPList
 
         if byte_count == 16
           # 128-bit integer - read as two 64-bit values (high, low)
-          high_bytes = data[pos + 1, 8].unpack("C*")
-          low_bytes = data[pos + 9, 8].unpack("C*")
-          high = high_bytes.reduce(0) { |a, b| (a << 8) | b }
-          low = low_bytes.reduce(0) { |a, b| (a << 8) | b }
+          high = data[pos + 1, 8].unpack1("Q>")
+          low = data[pos + 9, 8].unpack1("Q>")
           # Convert to signed if high MSB is set
           if high >= (1 << 63)
             high = high - (1 << 64)
