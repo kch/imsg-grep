@@ -192,7 +192,7 @@ module BPList
     parse_object.call(root_object_index)
   end
 
-  def self.expand_uids(obj, objects, visited = Set.new, depth = 0)
+  def self.dereference_uids(obj, objects, visited = Set.new, depth = 0)
     # Prevent infinite recursion
     raise "Maximum recursion depth exceeded" if depth > 1000
     case obj
@@ -204,17 +204,17 @@ module BPList
         return obj if uid >= objects.length || uid < 0
 
         visited.add(uid)
-        result = expand_uids(objects[uid], objects, visited, depth + 1)
+        result = dereference_uids(objects[uid], objects, visited, depth + 1)
         visited.delete(uid)
         return result
       else
         # Regular hash, expand all values
         result = {}
-        obj.each { |k, v| result[k] = expand_uids(v, objects, visited, depth + 1) }
+        obj.each { |k, v| result[k] = dereference_uids(v, objects, visited, depth + 1) }
         return result
       end
     when Array
-      obj.map { |item| expand_uids(item, objects, visited, depth + 1) }
+      obj.map { |item| dereference_uids(item, objects, visited, depth + 1) }
     else
       obj
     end
@@ -280,7 +280,7 @@ if __FILE__ == $0
 
     # Extract and transform root object
     root_object = parsed_bplist["$objects"][1]
-    expanded_object = BPList.expand_uids(root_object, parsed_bplist["$objects"])
+    expanded_object = BPList.dereference_uids(root_object, parsed_bplist["$objects"])
     transformed_object = BPList.decode_objects(expanded_object)
 
     # Parse payload JSON
