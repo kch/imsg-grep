@@ -2,7 +2,7 @@ require 'set'
 
 module BPList
   # Read big-endian integer from data at position
-  def self.read_big_endian_int(data, pos, size)
+  def self.read_int(data, pos, size)
     raise "Position #{pos} + #{size} beyond data size" if pos + size > data.bytesize
     case size
     when 1 then data[pos].unpack1("C")
@@ -31,7 +31,7 @@ module BPList
     raise "Invalid count marker" unless int_high == 0x1
 
     byte_count = 1 << (int_marker & 0x0F)
-    count = read_big_endian_int(data, pos + 2, byte_count)
+    count = read_int(data, pos + 2, byte_count)
     [count, pos + 2 + byte_count]
   end
 
@@ -52,7 +52,7 @@ module BPList
     # Read offset table
     offsets = Array.new(num_objects) do |i|
       pos = offset_table_pos + i * offset_int_size
-      read_big_endian_int(data, pos, offset_int_size)
+      read_int(data, pos, offset_int_size)
     end
 
     # Parse objects recursively
@@ -101,7 +101,7 @@ module BPList
           # Ruby handles big integers automatically
           (high << 64) | low
         else
-          value = read_big_endian_int(data, pos + 1, byte_count)
+          value = read_int(data, pos + 1, byte_count)
           # Per Apple spec: only 8+ byte integers are signed, 1/2/4 byte are unsigned
           if byte_count >= 8 && value >= (1 << (byte_count * 8 - 1))
             value - (1 << (byte_count * 8))
@@ -158,24 +158,24 @@ module BPList
       when 0x8  # UID
         byte_count = low + 1
         raise "Position #{pos + 1} + #{byte_count} beyond data size" if pos + 1 + byte_count > data.bytesize
-        {uid: read_big_endian_int(data, pos + 1, byte_count)}
+        {uid: read_int(data, pos + 1, byte_count)}
 
       when 0xA  # Array
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size} beyond data size" if start + count * objref_size > data.bytesize
-        Array.new(count) { |i| parse_object.call(read_big_endian_int(data, start + i * objref_size, objref_size)) }
+        Array.new(count) { |i| parse_object.call(read_int(data, start + i * objref_size, objref_size)) }
 
       when 0xC  # Set
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size} beyond data size" if start + count * objref_size > data.bytesize
-        Set.new(Array.new(count) { |i| parse_object.call(read_big_endian_int(data, start + i * objref_size, objref_size)) })
+        Set.new(Array.new(count) { |i| parse_object.call(read_int(data, start + i * objref_size, objref_size)) })
 
       when 0xD  # Dict
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size * 2} beyond data size" if start + count * objref_size * 2 > data.bytesize
         Array.new(count) { |i|
-          [ parse_object.call(read_big_endian_int(data, start + i * objref_size, objref_size)),
-            parse_object.call(read_big_endian_int(data, start + (count + i) * objref_size, objref_size))]
+          [ parse_object.call(read_int(data, start + i * objref_size, objref_size)),
+            parse_object.call(read_int(data, start + (count + i) * objref_size, objref_size))]
         }.to_h
 
       else
