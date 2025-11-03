@@ -140,6 +140,12 @@ MESSAGES_DECODED_QUERY = <<~SQL
     m.guid,
     IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle,
     IIF(m.destination_caller_id IS NOT NULL, json_insert(p.participant_handles, '$[#]', m.destination_caller_id), p.participant_handles) as participant_handles,
+    (SELECT json_group_array(json(cl.details))
+     FROM contact_lookup cl, json_each(p.participant_handles) ph
+     WHERE json_extract(cl.handles, '$') LIKE '%' || ph.value || '%') as participant_details,
+    (SELECT cd.contact
+     FROM contact_details cd
+     WHERE cd.handle = IIF(m.is_from_me, m.destination_caller_id, h.id)) as sender_details,
     IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
     IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload,
     IIF(m.payload_data IS NOT NULL, unarchive_keyed_strip(payload_data), NULL) as strip_payload_data
@@ -167,6 +173,8 @@ MESSAGES_QUERY = <<~SQL
     c.style as chat_style,
     c.display_name as chat_name,
     d.participant_handles,
+    d.participant_details,
+    d.sender_details,
     d.text_decoded,
     COALESCE(m.text, d.text_decoded, '') as computed_text,
     d.payload,
