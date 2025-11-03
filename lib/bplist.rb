@@ -1,6 +1,8 @@
 require 'set'
 
 module BPList
+  APPLE_EPOCH = 978307200  # Apple's epoch offset from Unix epoch
+
   # Read big-endian integer from data at position
   def self.read_int(data, pos, size)
     raise "Position #{pos} + #{size} beyond data size" if pos + size > data.bytesize
@@ -123,7 +125,7 @@ module BPList
         raise "Invalid date marker" unless marker == 0x33
         raise "Position #{pos + 1} + 8 beyond data size" if pos + 1 + 8 > data.bytesize
         seconds = data[pos + 1, 8].unpack1("G")
-        Time.at(978307200 + seconds)
+        Time.at(APPLE_EPOCH + seconds)
 
       when 0x4  # Data
         count, start = get_count(data, pos, low)
