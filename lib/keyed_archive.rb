@@ -5,16 +5,15 @@ require "base64"
 require_relative "bplist"
 
 class NSKeyedArchive
+  attr_reader :data
 
   class BinaryString < String
     def initialize(s) = super(s).force_encoding("BINARY")
     def to_json(...) = Base64.strict_encode64(self).to_json(...)
   end
 
-
-  attr_reader :data, :objects
-
   def self.unarchive(...) = new(...).unarchive
+  def self.json(...) = new(...).json
 
   def initialize(data)
     raise "no bplist" unless data.start_with?("bplist")
@@ -27,6 +26,8 @@ class NSKeyedArchive
     objs = @data["$objects"] or raise "no objects"
     decode_objects dereference_uids(root, objs)
   end
+
+  def json = unarchive.to_json
 
   private
 
