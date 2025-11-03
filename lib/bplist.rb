@@ -53,7 +53,7 @@ module BPList
     raise "Invalid object count" if num_objects < 1 || root_object_index >= num_objects
 
     # Read offset table
-    offsets = (0...num_objects).map do |i|
+    offsets = Array.new(num_objects) do |i|
       pos = offset_table_pos + i * offset_int_size
       read_big_endian_int(data, pos, offset_int_size)
     end
@@ -166,20 +166,20 @@ module BPList
       when 0xA  # Array
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size} beyond data size" if start + count * objref_size > data.bytesize
-        refs         = (0...count).map { |i| read_int(data, start + i * objref_size, objref_size) }
+        refs         = Array.new(count) { |i| read_int(data, start + i * objref_size, objref_size) }
         refs.map { |ref| parse_object.call(ref) }
 
       when 0xC  # Set
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size} beyond data size" if start + count * objref_size > data.bytesize
-        refs         = (0...count).map { |i| read_int(data, start + i * objref_size, objref_size) }
+        refs         = Array.new(count) { |i| read_int(data, start + i * objref_size, objref_size) }
         Set.new(refs.map { |ref| parse_object.call(ref) })
 
       when 0xD  # Dict
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size * 2} beyond data size" if start + count * objref_size * 2 > data.bytesize
-        key_refs     = (0...count).map { |i| read_int(data, start + i * objref_size, objref_size) }
-        val_refs     = (0...count).map { |i| read_int(data, start + (count + i) * objref_size, objref_size) }
+        key_refs     = Array.new(count) { |i| read_int(data, start + i * objref_size, objref_size) }
+        val_refs     = Array.new(count) { |i| read_int(data, start + (count + i) * objref_size, objref_size) }
         key_refs.zip(val_refs).to_h { |k, v| [parse_object.call(k), parse_object.call(v)] }
 
       else
