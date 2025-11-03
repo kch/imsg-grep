@@ -140,7 +140,7 @@ module BPList
         # Validate ASCII - check for non-ASCII bytes
         ascii_data.force_encoding("US-ASCII")
         if ascii_data.valid_encoding?
-          ascii_data.encode("UTF-8")
+          ascii_data.encode!("UTF-8")
         else
           # Invalid ASCII, keep as binary for later Base64 encoding
           ascii_data.force_encoding("ASCII-8BIT")
@@ -152,7 +152,7 @@ module BPList
         utf16_data = data[start, count * 2]
         # Convert UTF-16BE to UTF-8
         begin
-          utf16_data.force_encoding("UTF-16BE").encode("UTF-8")
+          utf16_data.force_encoding("UTF-16BE").encode!("UTF-8")
         rescue Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
           # Invalid UTF-16, keep as binary for later Base64 encoding
           utf16_data.force_encoding("ASCII-8BIT")
