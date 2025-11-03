@@ -43,8 +43,8 @@ class NSKeyedArchive
     return obj unless obj["$class"]
 
     case @objects[obj["$class"]["CF$UID"]]["$classname"]
-    when "NSArray", "NSMutableArray" then (obj["$objects"] || []).map { |x| parse_object(x) }
-    when "NSSet", "NSMutableSet"     then (obj["$objects"] || []).map { |x| parse_object(x) }.to_set
+    when "NSArray", "NSMutableArray" then (obj["NS.objects"] || []).map { parse_object it }
+    when "NSSet", "NSMutableSet"     then (obj["NS.objects"] || []).map { parse_object it }.to_set
     when "NSDictionary", "NSMutableDictionary"
       return {} unless obj["NS.keys"] && obj["NS.objects"]
       keys   = obj["NS.keys"   ].map { parse_object _1 }
