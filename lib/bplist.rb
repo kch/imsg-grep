@@ -302,20 +302,6 @@ if __FILE__ == $0
   require 'yaml'
   require 'base64'
 
-  def deep_sort_hash(obj)
-    case obj
-    when Hash
-      result = {}
-      obj.keys.sort_by(&:to_s).each do |key|
-        result[key] = deep_sort_hash(obj[key])
-      end
-      result
-    when Array
-      obj.map { |item| deep_sort_hash(item) }
-    else
-      obj
-    end
-  end
 
   # Connect to the database
   db = SQLite3::Database.new(File.expand_path("~/.cache/imsg-grep/chat.db"))
@@ -340,11 +326,7 @@ if __FILE__ == $0
     # Parse payload JSON
     payload_parsed = JSON.parse(payload_json) if payload_json
 
-    # Deep sort both for comparison (ignore key order)
-    sorted_transformed = deep_sort_hash(transformed_object)
-    sorted_payload = deep_sort_hash(payload_parsed)
-
-    if sorted_transformed == sorted_payload
+    if transformed_object == payload_parsed
       # puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MATCH ✓"
     else
       puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MISMATCH ✗"
