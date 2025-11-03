@@ -148,7 +148,6 @@ MESSAGES_DECODED_QUERY = <<~SQL
      WHERE cd.handle = IIF(m.is_from_me, m.destination_caller_id, h.id)) as sender_details,
     IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
     IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload,
-    IIF(m.payload_data IS NOT NULL, unarchive_keyed_strip(payload_data), NULL) as strip_payload_data
   FROM messages_db.message m
   LEFT JOIN messages_db.handle h             ON m.handle_id = h.ROWID
   LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
