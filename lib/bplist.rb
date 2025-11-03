@@ -21,8 +21,6 @@ module BPList
     end
   end
 
-
-
   # Get count/length (handles 0xF continuation)
   def self.get_count(data, pos, low)
     return [low, pos + 1] if low != 0x0F
@@ -161,7 +159,7 @@ module BPList
       when 0x8  # UID
         byte_count = low + 1
         raise "Position #{pos + 1} + #{byte_count} beyond data size" if pos + 1 + byte_count > data.bytesize
-        {uid: read_int(data, pos + 1, byte_count)}
+        { "CF$UID" => read_int(data, pos + 1, byte_count)}
 
       when 0xA  # Array
         count, start = get_count(data, pos, low)
@@ -193,114 +191,8 @@ module BPList
     parse_object.call(root_object_index)
   end
 
-  def self.dereference_uids(obj, objects, visited = Set.new, depth = 0)
-    # Prevent infinite recursion
-    raise "Maximum recursion depth exceeded" if depth > 1000
-    case obj
-    when Hash
-      if obj.size == 1 && obj.has_key?(:uid)
-        # This is a UID reference, expand it
-        uid = obj[:uid]
-        return obj if visited.include?(uid) # Prevent infinite recursion
-        return obj if uid >= objects.length || uid < 0
-
-        visited.add(uid)
-        result = dereference_uids(objects[uid], objects, visited, depth + 1)
-        visited.delete(uid)
-        return result
-      else
-        # Regular hash, expand all values
-        result = {}
-        obj.each { |k, v| result[k] = dereference_uids(v, objects, visited, depth + 1) }
-        return result
-      end
-    when Array
-      obj.map { |item| dereference_uids(item, objects, visited, depth + 1) }
-    else
-      obj
-    end
-  end
-
-  def self.decode_objects(obj)
-    case obj
-    when Hash
-    # Stage 3: Transform NSArray and $null values
-      case obj.dig("$class", "$classname")
-      in "NSArray" if obj.key? "NS.objects"
-        obj["NS.objects"].map { |item| decode_objects(item) }
-
-      in "NSDictionary" if obj.key?("NS.keys") && obj.key?("NS.objects")
-        obj["NS.keys"].zip(obj["NS.objects"].map{ decode_objects it }).to_h
-
-      in "NSURL" if obj["NS.base"] == "$null" && obj["NS.relative"]
-        obj["NS.relative"]
-      else
-        obj.transform_values { decode_objects it }
-      end
-
-    when Array  then obj.map { |item| decode_objects(item) }
-    when "$null" then nil  # Transform $null strings to actual null
-
-    when String # Transform binary data to Base64 ; detect if string is binary (ASCII-8BIT) or invalid UTF-8
-      case
-      when obj.encoding == Encoding::BINARY then Base64.strict_encode64(obj)
-      when obj.force_encoding('UTF-8').valid_encoding? then obj
-      when obj.force_encoding('BINARY') then Base64.strict_encode64(obj)
-      else raise
-      end
-
-    else obj
-    end
-  end
-
 end
 
-
-
-if __FILE__ == $0
-  require 'sqlite3'
-  require 'json'
-  require 'yaml'
-  require 'base64'
-
-
-  # Connect to the database
-  db = SQLite3::Database.new(File.expand_path("~/.cache/imsg-grep/chat.db"))
-
-  # Get all rows with both payload_data and payload, including id
-  rows = db.execute("SELECT id, payload_data, payload FROM messages_decoded WHERE payload_data IS NOT NULL ORDER BY utc_time DESC")
-
-  puts "Comparing #{rows.length} records..."
-
-  rows.each_with_index do |row, index|
-    id, payload_data, payload_json = row
-
-    # Parse bplist
-    binary_data = payload_data.dup.force_encoding('BINARY')
-    parsed_bplist = BPList.parse(binary_data)
-
-    # Extract and transform root object
-    root_object = parsed_bplist["$objects"][1]
-    expanded_object = BPList.dereference_uids(root_object, parsed_bplist["$objects"])
-    transformed_object = BPList.decode_objects(expanded_object)
-
-    # Parse payload JSON
-    payload_parsed = JSON.parse(payload_json) if payload_json
-
-    if transformed_object == payload_parsed
-      # puts "Row #{index + 1}/#{rows.length} (id:#{id}): MATCH ✓"
-    else
-      puts "Row #{index + 1}/#{rows.length} (id:#{id}): MISMATCH ✗"
-      puts "\n=== TRANSFORMED BPLIST (STAGE 3) ==="
-      puts transformed_object.to_yaml
-      puts "\n=== PAYLOAD JSON ==="
-      puts payload_parsed.to_yaml
-      break
-    end
-  end
-
-  db.close
-end
 
 __END__
 
