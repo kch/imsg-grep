@@ -137,9 +137,10 @@ module BPList
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count} beyond data size" if start + count > data.bytesize
         ascii_data = data[start, count]
-        # Validate ASCII - all bytes must be < 128
-        if ascii_data.bytes.all? { |b| b < 128 }
-          ascii_data.force_encoding("US-ASCII").encode("UTF-8")
+        # Validate ASCII - check for non-ASCII bytes
+        ascii_data.force_encoding("US-ASCII")
+        if ascii_data.valid_encoding?
+          ascii_data.encode("UTF-8")
         else
           # Invalid ASCII, keep as binary for later Base64 encoding
           ascii_data.force_encoding("ASCII-8BIT")
