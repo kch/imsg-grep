@@ -3,6 +3,7 @@
 require "plist"
 require "open3"
 require "json"
+require "base64"
 
 class NSKeyedArchive
   attr_reader :data, :objects
@@ -29,8 +30,14 @@ class NSKeyedArchive
 
   private
 
+  class BinaryString < String
+    def initialize(s) = super(s).force_encoding("BINARY")
+    def to_json(...) = Base64.strict_encode64(self).to_json(...)
+  end
+
   def parse_object(obj)
     return nil if obj == "$null"
+    return BinaryString.new obj.read if obj.is_a?(StringIO)
     return obj if !obj.is_a?(Hash)
     return parse_object(@objects[obj["CF$UID"]]) if obj["CF$UID"]
     return obj unless obj["$class"]
