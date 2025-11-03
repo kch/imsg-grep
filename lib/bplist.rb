@@ -197,7 +197,7 @@ module BPList
     raise "Maximum recursion depth exceeded" if depth > 1000
     case obj
     when Hash
-      if obj.has_key?(:uid) && obj.keys == [:uid]
+      if obj.size == 1 && obj.has_key?(:uid)
         # This is a UID reference, expand it
         uid = obj[:uid]
         return obj if visited.include?(uid) # Prevent infinite recursion
