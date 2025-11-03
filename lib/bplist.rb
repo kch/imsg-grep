@@ -38,6 +38,7 @@ module BPList
   end
 
   def self.parse(data)
+    data = data.dup.force_encoding("BINARY")
     raise "Invalid header" unless data.start_with?("bplist00")
 
     # Parse trailer (last 32 bytes)
