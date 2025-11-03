@@ -343,7 +343,7 @@ if __FILE__ == $0
     sorted_payload = deep_sort_hash(payload_parsed)
 
     if sorted_transformed == sorted_payload
-      puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MATCH ✓"
+      # puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MATCH ✓"
     else
       puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MISMATCH ✗"
       puts "\n=== TRANSFORMED BPLIST (STAGE 3) ==="
