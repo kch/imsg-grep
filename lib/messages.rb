@@ -6,6 +6,8 @@ require 'ffi'
 require 'benchmark'
 require_relative 'keyed_archive'
 require_relative 'attr_str'
+require 'parallel'
+require 'etc'
 
 CONTACTS_DB = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
 MESSAGES_DB = Dir[File.expand_path("~/Library/Messages/chat.db")][0]
@@ -147,7 +149,8 @@ MESSAGES_DECODED_QUERY = <<~SQL
      FROM contact_details cd
      WHERE cd.handle = IIF(m.is_from_me, m.destination_caller_id, h.id)) as sender_details,
     IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
-    IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload,
+    -- IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload,
+    NULL as payload
   FROM messages_db.message m
   LEFT JOIN messages_db.handle h             ON m.handle_id = h.ROWID
   LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
@@ -161,6 +164,46 @@ time = Benchmark.measure do
   $db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
 end
 puts "Messages decoded table update took: #{time.real.round(3)}s"
+
+
+payload_rows = $db.execute(<<~SQL)
+  SELECT md.id, m.payload_data
+  FROM messages_decoded md
+  JOIN messages_db.message m ON md.id = m.ROWID
+  WHERE m.payload_data IS NOT NULL AND md.payload IS NULL
+SQL
+
+
+SQLite3::ForkSafety.suppress_warnings!
+
+# Split rows for concurrent processing
+payload_results = nil
+payload_time = Benchmark.measure do
+  # payload_results = payload_rows.map do |row|
+  payload_results = Parallel.map(payload_rows, in_processes: Etc.nprocessors - 1) do |id, data|
+    [id, NSKeyedArchive.json(data)]
+  end
+end
+
+# Bulk update decoded results in batches
+db_time = Benchmark.measure do
+  $db.transaction do
+    payload_results.each_slice(500) do |batch|
+      ids    = batch.map { |id, _| id }
+      cases  = batch.map { |id, _| "WHEN #{id} THEN ?" }.join(" ")
+      params = batch.map { |_, payload| payload }
+
+      $db.execute(<<~SQL, params)
+        UPDATE messages_decoded
+        SET    payload = CASE id #{cases} END
+        WHERE  id IN (#{ids.join(",")})
+      SQL
+    end
+  end
+end
+
+puts "Payload processing took: #{payload_time.real.round(3)}s (#{payload_rows.size} items)"
+puts "Database update took: #{db_time.real.round(3)}s (#{payload_results.size} records)"
 
 
 MESSAGES_QUERY = <<~SQL
