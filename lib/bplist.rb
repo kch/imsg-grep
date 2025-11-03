@@ -306,13 +306,13 @@ if __FILE__ == $0
   # Connect to the database
   db = SQLite3::Database.new(File.expand_path("~/.cache/imsg-grep/chat.db"))
 
-  # Get all rows with both payload_data and payload, including rowid
-  rows = db.execute("SELECT rowid, payload_data, payload FROM messages_decoded WHERE payload_data IS NOT NULL ORDER BY utc_time DESC")
+  # Get all rows with both payload_data and payload, including id
+  rows = db.execute("SELECT id, payload_data, payload FROM messages_decoded WHERE payload_data IS NOT NULL ORDER BY utc_time DESC")
 
   puts "Comparing #{rows.length} records..."
 
   rows.each_with_index do |row, index|
-    rowid, payload_data, payload_json = row
+    id, payload_data, payload_json = row
 
     # Parse bplist
     binary_data = payload_data.dup.force_encoding('BINARY')
@@ -327,9 +327,9 @@ if __FILE__ == $0
     payload_parsed = JSON.parse(payload_json) if payload_json
 
     if transformed_object == payload_parsed
-      # puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MATCH ✓"
+      # puts "Row #{index + 1}/#{rows.length} (id:#{id}): MATCH ✓"
     else
-      puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MISMATCH ✗"
+      puts "Row #{index + 1}/#{rows.length} (id:#{id}): MISMATCH ✗"
       puts "\n=== TRANSFORMED BPLIST (STAGE 3) ==="
       puts transformed_object.to_yaml
       puts "\n=== PAYLOAD JSON ==="
