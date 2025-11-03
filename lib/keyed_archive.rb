@@ -10,22 +10,18 @@ class NSKeyedArchive
 
   def self.unarchive(...) = new(...).unarchive
 
-  def initialize(data, strip_meta: false)
+  def initialize(data)
     data = xml_from_binary_plist data if data.start_with?("bplist")
     raise "no xml" unless data.start_with?("<?xml", "<plist")
-    @data       = Plist.parse_xml(data)
-    @objects    = @data["$objects"]
-    @strip_meta = strip_meta
+    @data    = Plist.parse_xml(data)
+    @objects = @data["$objects"]
   end
 
   def unarchive
     top = @data["$top"]
-    return parse_object(top["root"]) if top["root"]
-
-    candidates = top.except "version"
-    return parse_object(candidates.values.first) if candidates.size == 1
-
-    raise "Ambiguous root object - multiple candidates: #{candidates.keys}"
+    root_obj = top["root"] or raise "no root"
+    full = parse_object(root_obj)
+    [full, strip_metadata(full)]
   end
 
   private
@@ -42,7 +38,7 @@ class NSKeyedArchive
     return parse_object(@objects[obj["CF$UID"]]) if obj["CF$UID"]
     return obj unless obj["$class"]
 
-    case @objects[obj["$class"]["CF$UID"]]["$classname"]
+    case obj["$class"]["$classname"] || @objects[obj["$class"]["CF$UID"]]["$classname"]
     when "NSArray", "NSMutableArray" then (obj["NS.objects"] || []).map { parse_object it }
     when "NSSet", "NSMutableSet"     then (obj["NS.objects"] || []).map { parse_object it }.to_set
     when "NSDictionary", "NSMutableDictionary"
@@ -51,12 +47,20 @@ class NSKeyedArchive
       values = obj["NS.objects"].map { parse_object it }
       keys.zip(values).to_h
     when "NSURL"
-      result = obj.transform_values { |v| parse_object(v) }
-      result = result["NS.relative"] if @strip_meta && result["NS.base"].nil?
-      result
+      obj.transform_values! { parse_object it }
+      return obj["NS.relative"] if obj.key?("NS.relative") && obj["NS.base"].nil?
+      obj
     else
-      result = obj.transform_values { |v| parse_object(v) }
-      @strip_meta ? result.except("$class", "$classes") : result
+      obj.transform_values { parse_object it }
+    end
+  end
+
+  def strip_metadata(obj)
+    case obj
+    when Array then obj.map { strip_metadata it }
+    when Set   then obj.map { strip_metadata it }.to_set
+    when Hash  then obj.except("$class", "$classes").transform_values { strip_metadata it }
+    else obj
     end
   end
 
@@ -65,10 +69,12 @@ class NSKeyedArchive
     return stdout if status.success?
     raise "plutil failed: #{stderr}"
   end
+
 end
 
+
 if __FILE__ == $0
-  input  = $stdin.read
-  result = NSKeyedArchive.unarchive(input, strip_meta: true)
-  puts JSON.pretty_generate(result)
+  input = $stdin.read
+  _, stripped = NSKeyedArchive.unarchive(input)
+  puts JSON.pretty_generate(stripped)
 end
