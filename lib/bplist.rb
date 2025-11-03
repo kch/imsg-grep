@@ -168,8 +168,7 @@ module BPList
       when 0xC  # Set
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size} beyond data size" if start + count * objref_size > data.bytesize
-        refs         = Array.new(count) { |i| read_big_endian_int(data, start + i * objref_size, objref_size) }
-        Set.new(refs.map { |ref| parse_object.call(ref) })
+        Set.new(Array.new(count) { |i| parse_object.call(read_big_endian_int(data, start + i * objref_size, objref_size)) })
 
       when 0xD  # Dict
         count, start = get_count(data, pos, low)
