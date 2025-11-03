@@ -178,25 +178,5 @@ MESSAGES_QUERY = <<~SQL
   LEFT JOIN messages_decoded d               ON m.ROWID     = d.id
   WHERE #{MESSAGES_EXCLUSION}
 SQL
+
 $db.execute "CREATE TEMP VIEW messages AS #{MESSAGES_QUERY}"
-
-# Materialize all views for external DB browser access
-$db.execute "DROP TABLE IF EXISTS mat_contact_details;"
-$db.execute "CREATE TABLE mat_contact_details AS SELECT * FROM contact_details"
-
-$db.execute "DROP TABLE IF EXISTS mat_contact_lookup;"
-$db.execute "CREATE TABLE mat_contact_lookup AS SELECT * FROM contact_lookup"
-
-$db.execute "DROP TABLE IF EXISTS mat_messages;"
-$db.execute "CREATE TABLE mat_messages AS SELECT * FROM messages"
-
-$db.execute "DROP TABLE IF EXISTS mat_message_attachment_join;"
-$db.execute "CREATE TABLE mat_message_attachment_join AS SELECT * FROM messages_db.message_attachment_join"
-
-$db.execute "DROP TABLE IF EXISTS mat_attachment;"
-$db.execute <<~SQL
-  CREATE TABLE mat_attachment AS
-  SELECT a.*, j.message_id
-  FROM messages_db.attachment a
-  JOIN messages_db.message_attachment_join j ON a.ROWID = j.attachment_id
-SQL
