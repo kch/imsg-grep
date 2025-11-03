@@ -338,23 +338,23 @@ if __FILE__ == $0
     expanded_object = BPList.expand_uids(root_object, parsed_bplist["$objects"])
     transformed_object = BPList.transform_ns_objects(expanded_object)
 
-    # # Parse payload JSON
-    # payload_parsed = JSON.parse(payload_json) if payload_json
+    # Parse payload JSON
+    payload_parsed = JSON.parse(payload_json) if payload_json
 
-    # # Deep sort both for comparison (ignore key order)
-    # sorted_transformed = deep_sort_hash(transformed_object)
-    # sorted_payload = deep_sort_hash(payload_parsed)
+    # Deep sort both for comparison (ignore key order)
+    sorted_transformed = deep_sort_hash(transformed_object)
+    sorted_payload = deep_sort_hash(payload_parsed)
 
-    # if sorted_transformed == sorted_payload
-    #   puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MATCH ✓"
-    # else
-    #   puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MISMATCH ✗"
-    #   puts "\n=== TRANSFORMED BPLIST (STAGE 3) ==="
-    #   puts transformed_object.to_yaml
-    #   puts "\n=== PAYLOAD JSON ==="
-    #   puts payload_parsed.to_yaml
-    #   break
-    # end
+    if sorted_transformed == sorted_payload
+      puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MATCH ✓"
+    else
+      puts "Row #{index + 1}/#{rows.length} (id:#{rowid}): MISMATCH ✗"
+      puts "\n=== TRANSFORMED BPLIST (STAGE 3) ==="
+      puts transformed_object.to_yaml
+      puts "\n=== PAYLOAD JSON ==="
+      puts payload_parsed.to_yaml
+      break
+    end
   end
 
   db.close
