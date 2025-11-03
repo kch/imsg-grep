@@ -173,9 +173,10 @@ module BPList
       when 0xD  # Dict
         count, start = get_count(data, pos, low)
         raise "Position #{start} + #{count * objref_size * 2} beyond data size" if start + count * objref_size * 2 > data.bytesize
-        key_refs     = Array.new(count) { |i| read_big_endian_int(data, start + i * objref_size, objref_size) }
-        val_refs     = Array.new(count) { |i| read_big_endian_int(data, start + (count + i) * objref_size, objref_size) }
-        key_refs.zip(val_refs).to_h { |k, v| [parse_object.call(k), parse_object.call(v)] }
+        Array.new(count) { |i|
+          [ parse_object.call(read_big_endian_int(data, start + i * objref_size, objref_size)),
+            parse_object.call(read_big_endian_int(data, start + (count + i) * objref_size, objref_size))]
+        }.to_h
 
       else
         raise "Unknown marker: 0x#{marker.to_s(16)}"
