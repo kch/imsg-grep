@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# Core iMessage database processing - builds cached views with decoded messages, contacts, and attachments
+
 require 'fileutils'
 require 'sqlite3'
 require 'json'

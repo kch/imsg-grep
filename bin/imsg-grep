@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# Search and filter iMessage database entries with regex patterns, date ranges, and participant filters
+
 require "slop"
 require "date"
 require "json"

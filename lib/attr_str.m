@@ -1,3 +1,5 @@
+// Objective-C library for decoding NSAttributedString binary data from iMessage attachments
+
 #import <Foundation/Foundation.h>
 
 /*

@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# Ruby FFI wrapper for the attr_str.dylib library to decode NSAttributedString binary data
+
 require "ffi"
 
 module NSAttributedString

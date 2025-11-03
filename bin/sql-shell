@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# Interactive SQL shell for querying the iMessage database with readline history
 
 require_relative '../lib/messages'
 require_relative '../lib/print_query'

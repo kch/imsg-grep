@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# Development tool to extract and convert binary plist payload data from messages database to YAML files
 
 require 'sqlite3'
 require 'yaml'

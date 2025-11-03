@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# Display detailed information about a specific message by ID from the iMessage database
+
 require_relative '../lib/messages'
 require_relative '../lib/print_query'
 

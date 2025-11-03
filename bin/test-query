@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# Test query script for benchmarking and testing SQL queries against the iMessage database
+
 require_relative '../lib/messages'
 require_relative '../lib/print_query'
 

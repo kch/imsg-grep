@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# NSKeyedArchive decoder for unpacking Apple's keyed archive format from binary plists
 
 require "json"
 require "base64"

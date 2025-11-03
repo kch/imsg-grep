@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# Development tool to query messages with 'andy' in participant details and YouTube/SoundCloud links
 
 require_relative "../../lib/messages"
 

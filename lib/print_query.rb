@@ -1,3 +1,5 @@
+# Query result formatter that prints SQL results in a readable key-value format
+
 def print_query(db, sql)
   puts "\n#{'=' * 80}"
   cols = []
