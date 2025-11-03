@@ -142,7 +142,7 @@ module BPList
           ascii_data.encode!("UTF-8")
         else
           # Invalid ASCII, keep as binary for later Base64 encoding
-          ascii_data.force_encoding("ASCII-8BIT")
+          ascii_data.force_encoding("BINARY")
         end
 
       when 0x6  # UTF-16 string
@@ -154,7 +154,7 @@ module BPList
           utf16_data.force_encoding("UTF-16BE").encode!("UTF-8")
         rescue Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
           # Invalid UTF-16, keep as binary for later Base64 encoding
-          utf16_data.force_encoding("ASCII-8BIT")
+          utf16_data.force_encoding("BINARY")
         end
 
       when 0x8  # UID
