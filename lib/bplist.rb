@@ -38,7 +38,7 @@ module BPList
   end
 
   def self.parse(data)
-    raise "Invalid header" unless data[0, 8] == "bplist00"
+    raise "Invalid header" unless data.start_with?("bplist00")
 
     # Parse trailer (last 32 bytes)
     trailer           = data[-32..]
