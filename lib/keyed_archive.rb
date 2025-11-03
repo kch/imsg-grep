@@ -47,8 +47,8 @@ class NSKeyedArchive
     when "NSSet", "NSMutableSet"     then (obj["NS.objects"] || []).map { parse_object it }.to_set
     when "NSDictionary", "NSMutableDictionary"
       return {} unless obj["NS.keys"] && obj["NS.objects"]
-      keys   = obj["NS.keys"   ].map { parse_object _1 }
-      values = obj["NS.objects"].map { parse_object _1 }
+      keys   = obj["NS.keys"   ].map { parse_object it }
+      values = obj["NS.objects"].map { parse_object it }
       keys.zip(values).to_h
     when "NSURL"
       result = obj.transform_values { |v| parse_object(v) }
