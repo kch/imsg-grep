@@ -42,12 +42,12 @@ module BPList
     raise "Invalid header" unless data.start_with?("bplist00")
 
     # Parse trailer (last 32 bytes)
-    trailer           = data[-32..]
-    offset_int_size   = trailer[6].ord
-    objref_size       = trailer[7].ord
-    num_objects       = trailer[8, 8].unpack1("Q>")
-    root_object_index = trailer[16, 8].unpack1("Q>")
-    offset_table_pos  = trailer[24, 8].unpack1("Q>")
+    trailer_start     = data.bytesize - 32
+    offset_int_size   = data[trailer_start + 6].ord
+    objref_size       = data[trailer_start + 7].ord
+    num_objects       = data.unpack1("Q>", offset: trailer_start + 8)
+    root_object_index = data.unpack1("Q>", offset: trailer_start + 16)
+    offset_table_pos  = data.unpack1("Q>", offset: trailer_start + 24)
 
     raise "Invalid trailer" if offset_int_size < 1 || objref_size < 1
     raise "Invalid object count" if num_objects < 1 || root_object_index >= num_objects
