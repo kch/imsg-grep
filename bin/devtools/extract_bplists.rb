@@ -25,9 +25,19 @@ rows.each do |row|
 
   begin
     # Convert binary plist to XML using plutil
-    stdout, _, status = Open3.capture3("plutil -convert xml1 - -o -", stdin_data: payload_data, binmode: true)
+    stdout, stderr, status = Open3.capture3("plutil -convert xml1 - -o -", stdin_data: payload_data, binmode: true)
 
-    next print("E") unless status.success?
+    unless status.success?
+      print "E"
+      # next
+      puts
+      puts "Row ID: #{rowid}"
+      puts "STDOUT: #{stdout}"
+      puts "STDERR: #{stderr}"
+      puts "Payload (hex): #{payload_data.unpack1('H*')}"
+      next
+    end
+
     print(".")
 
     # Parse XML plist
