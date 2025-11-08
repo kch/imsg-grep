@@ -19,10 +19,10 @@ rows.each do |row|
 
   begin
     # Convert binary plist to XML using plutil
-    print(".")
-    stdout, stderr, status = Open3.capture3("plutil -convert xml1 - -o -", stdin_data: payload_data, binmode: true)
+    stdout, _, status = Open3.capture3("plutil -convert xml1 - -o -", stdin_data: payload_data, binmode: true)
 
     next print("E") unless status.success?
+    print(".")
 
     # Parse XML plist
     parsed_data = Plist.parse_xml(stdout)
