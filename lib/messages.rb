@@ -5,11 +5,43 @@ require 'fileutils'
 require 'sqlite3'
 require 'json'
 require 'ffi'
-require 'benchmark'
 require_relative 'keyed_archive'
 require_relative 'attr_str'
 require 'parallel'
 require 'etc'
+
+module Timer
+  def self.start
+    @t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    @last_lap = @t0
+    @total_time = 0.0
+    @laps = []
+  end
+
+  def self.lap(msg)
+    now = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    lap_time = (now - @last_lap) * 1000
+    @total_time += lap_time
+    line = "%5.0fms / %5.0fms: #{msg}" % [lap_time, @total_time]
+    puts line
+    @laps << { msg: msg, time: lap_time, line: line, line_num: @laps.size }
+    @last_lap = now
+  end
+
+  def self.finish
+    max_lap_time = @laps.map { |lap| lap[:time] }.max
+    longest_line = @laps.map { |lap| lap[:line].length }.max
+    start_col = longest_line + 3
+    @laps.reverse.each do |lap|
+      pct = (lap[:time] / @total_time * 100).round(1)
+      bar_length = (lap[:time] / max_lap_time * 20).round
+      bar = "█" * bar_length + "░" * (20 - bar_length)
+      padding = " " * [0, start_col - lap[:line].length].max
+      print "\e[#{@laps.size - lap[:line_num]}A\r#{lap[:line]}#{padding}#{bar} #{pct}%\e[#{@laps.size - lap[:line_num]}B\r"
+    end
+    puts
+  end
+end
 
 PARALLEL = true
 
@@ -18,6 +50,8 @@ MESSAGES_DB = Dir[File.expand_path("~/Library/Messages/chat.db")][0]
 CACHE_DB    = File.expand_path("~/.cache/imsg-grep/chat.db")
 FileUtils.mkdir_p File.dirname(CACHE_DB)
 FileUtils.touch(CACHE_DB)
+
+Timer.start
 
 [CONTACTS_DB, MESSAGES_DB, CACHE_DB].each do |db|
   raise "Database not found: #{db}" unless File.exist?(db)
@@ -33,6 +67,8 @@ $db.create_function("regexp", 2)               { |f, rx, text| f.result = REGEX_
 $db.create_function("plusdigits", 1)           { |f, text| f.result = text.delete("^0-9+") }
 $db.create_function("unarchive_keyed", 1)      { |f, text| f.result = NSKeyedArchive.unarchive(text).to_json }
 $db.create_function("unarchive_attributed", 1) { |f, text| f.result = NSAttributedString.unarchive text }
+
+Timer.lap "setup"
 
 # table: contacts
 # all contacts, like:
@@ -60,6 +96,7 @@ $db.execute <<-SQL
   LEFT JOIN emails e ON e.ZOWNER = r.Z_PK
   LEFT JOIN phones p ON p.ZOWNER = r.Z_PK;
 SQL
+Timer.lap "contacts table creation"
 
 # table: handle_contacts
 # maps message handles to contact IDs:
@@ -85,6 +122,7 @@ $db.execute <<-SQL
   );
 SQL
 $db.execute "CREATE INDEX idx_handle_contacts ON handle_contacts(handle_id)"
+Timer.lap "handle contacts table creation"
 
 # temp view: contact_details
 # maps handles to full contact info as json
@@ -104,6 +142,7 @@ $db.execute <<~SQL
   FROM handle_contacts h
   JOIN contacts c ON c.id = h.contact_id;
 SQL
+Timer.lap "contact details table creation"
 
 ###
 
@@ -229,3 +268,5 @@ MESSAGES_QUERY = <<~SQL
 SQL
 
 $db.execute "CREATE TEMP VIEW messages AS #{MESSAGES_QUERY}"
+Timer.lap "messages view creation"
+Timer.finish
