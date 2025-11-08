@@ -109,8 +109,8 @@ SQL
 
 MESSAGES_EXCLUSION = <<~SQL
   (
-    (associated_message_type IS NULL OR associated_message_type < 2000)  -- # Exclude metadata/reaction messages
-    AND (balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider')   -- # Digital touch lol; another check: substr(hex(payload_data), 1, 8) = '08081100'
+    (associated_message_type IS NULL OR associated_message_type < 2000)                              -- # Exclude metadata/reaction messages
+    AND (balloon_bundle_id IS NULL OR balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider')  -- # Digital touch lol; another check: substr(hex(payload_data), 1, 8) = '08081100'
   )
 SQL
 
