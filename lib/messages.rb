@@ -34,6 +34,7 @@ $db.create_function("plusdigits", 1)           { |f, text| f.result = text.delet
 $db.create_function("unarchive_keyed", 1)      { |f, text| f.result = NSKeyedArchive.unarchive(text).to_json }
 $db.create_function("unarchive_attributed", 1) { |f, text| f.result = NSAttributedString.unarchive text }
 
+# table: contacts
 # all contacts, like:
 # id      | 42
 # name    | "John Smith"
@@ -60,6 +61,7 @@ $db.execute <<-SQL
   LEFT JOIN phones p ON p.ZOWNER = r.Z_PK;
 SQL
 
+# table: handle_contacts
 # maps message handles to contact IDs:
 # handle_id  | "+14155551212"
 # contact_id | 42
@@ -84,6 +86,7 @@ $db.execute <<-SQL
 SQL
 $db.execute "CREATE INDEX idx_handle_contacts ON handle_contacts(handle_id)"
 
+# temp view: contact_details
 # maps handles to full contact info as json
 # handle   | "+14155551212"
 # contact  | { "name":    "John Smith",
@@ -102,6 +105,7 @@ $db.execute <<~SQL
   JOIN contacts c ON c.id = h.contact_id;
 SQL
 
+# temp view: contact_lookup
 # searchable contact info with all their handles. match on searchable, use handles to query msgs
 # contact_id | 42
 # handles    | ["+14155551212", "+14155551213"]
