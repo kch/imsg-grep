@@ -4,6 +4,29 @@
 require_relative '../lib/messages'
 require_relative '../lib/print_query'
 
+# temp view: contact_lookup
+# searchable contact info with all their handles. match on searchable, use handles to query msgs
+# contact_id | 42
+# handles    | ["+14155551212", "+14155551213"]
+# searchable | ["John Smith", "john@gmail.com", "john@work.com", "+14155551212", "+14155551213"]
+# details    | { "name": "John Smith", "emails": ["john@gmail.com", "john@work.com"], "numbers": ["+14155551212", "+14155551213"] }
+$db.execute <<~SQL
+  CREATE TEMP VIEW contact_lookup AS
+  SELECT
+    c.id as contact_id,
+    json_group_array(h.handle_id) as handles,
+    (SELECT json_group_array(value) FROM (
+      SELECT c.name as value                UNION ALL
+      SELECT value FROM json_each(c.emails) UNION ALL
+      SELECT value FROM json_each(c.numbers)
+    )) as searchable,
+    (SELECT contact FROM contact_details WHERE handle = h.handle_id) as details
+  FROM contacts c
+  JOIN handle_contacts h ON h.contact_id = c.id
+  GROUP BY c.id;
+SQL
+
+
 time = Benchmark.measure do
   print_query($db, <<~SQL)
     SELECT
