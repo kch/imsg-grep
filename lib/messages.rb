@@ -61,8 +61,8 @@ $db.execute <<-SQL
 SQL
 
 # maps message handles to contact IDs:
-# handle_id | "+14155551212"
-# contact_id| 42
+# handle_id  | "+14155551212"
+# contact_id | 42
 $db.execute "DROP TABLE IF EXISTS handle_contacts;"
 $db.execute <<-SQL
   CREATE TABLE handle_contacts AS
