@@ -3,8 +3,6 @@
 
 require 'fileutils'
 require 'sqlite3'
-require 'json'
-require 'ffi'
 require 'parallel'
 require 'etc'
 require_relative 'keyed_archive'
