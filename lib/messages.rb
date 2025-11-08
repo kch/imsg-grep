@@ -144,18 +144,30 @@ MESSAGES_DECODED_QUERY = <<~SQL
     FROM messages_db.chat_handle_join chj
     JOIN messages_db.handle h ON chj.handle_id = h.ROWID
     GROUP BY chat_id
+  ),
+  message_participants AS (
+    SELECT
+      m.ROWID as message_id,
+      IIF(m.destination_caller_id IS NOT NULL, json_insert(p.participant_handles, '$[#]', m.destination_caller_id), p.participant_handles) as participant_handles,
+      IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle
+    FROM messages_db.message m
+    LEFT JOIN messages_db.handle h ON m.handle_id = h.ROWID
+    LEFT JOIN messages_db.chat_message_join cm ON m.ROWID = cm.message_id
+    LEFT JOIN messages_db.chat c ON cm.chat_id = c.ROWID
+    LEFT JOIN chat_participants p ON c.ROWID = p.chat_id
+    WHERE #{MESSAGES_EXCLUSION}
   )
   SELECT
     m.ROWID as id,
     m.guid,
-    IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle,
-    IIF(m.destination_caller_id IS NOT NULL, json_insert(p.participant_handles, '$[#]', m.destination_caller_id), p.participant_handles) as participant_handles,
-    (SELECT json_group_array(json(cl.details))
-     FROM contact_lookup cl, json_each(p.participant_handles) ph
-     WHERE json_extract(cl.handles, '$') LIKE '%' || ph.value || '%') as participant_details,
+    mp.sender_handle,
+    mp.participant_handles,
+    (SELECT json_group_array(json(cd.contact))
+     FROM contact_details cd, json_each(mp.participant_handles) ph
+     WHERE cd.handle = ph.value) as participant_details,
     (SELECT cd.contact
      FROM contact_details cd
-     WHERE cd.handle = IIF(m.is_from_me, m.destination_caller_id, h.id)) as sender_details,
+     WHERE cd.handle = mp.sender_handle) as sender_details,
     IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
     #{if PARALLEL
         "NULL as payload"
@@ -163,10 +175,7 @@ MESSAGES_DECODED_QUERY = <<~SQL
         "IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload"
       end}
   FROM messages_db.message m
-  LEFT JOIN messages_db.handle h             ON m.handle_id = h.ROWID
-  LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
-  LEFT JOIN messages_db.chat c               ON cm.chat_id  = c.ROWID
-  LEFT JOIN chat_participants p              ON c.ROWID     = p.chat_id
+  LEFT JOIN message_participants mp ON m.ROWID     = mp.message_id
   WHERE #{MESSAGES_EXCLUSION}
 SQL
 
