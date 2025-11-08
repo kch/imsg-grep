@@ -36,7 +36,7 @@ $db.results_as_hash = true
 # Parameters
 name_param = ARGV[0] || "andy"
 like_params = ARGV[1] ? ARGV[1..] : ["https://www.youtube.com", "https://soundcloud.com"]
-results = $db.execute(<<~SQL, [name_param, like_params.to_json])
+results = $db.execute(<<~SQL, [name_param, name_param, like_params.to_json])
   SELECT
     m.id,
     m.utc_time,
@@ -51,12 +51,17 @@ results = $db.execute(<<~SQL, [name_param, like_params.to_json])
   FROM messages m
   LEFT JOIN message_chat_names mcn ON m.id = mcn.message_id
   WHERE
-    EXISTS (
-      -- Match name only in JSON leaf string values, not keys
-      SELECT 1 FROM json_tree(m.participant_details)
-      WHERE type = 'text'
-      AND regexp(?, value)
-    )
+  (EXISTS (
+    -- Match name only in JSON leaf string values, not keys
+    SELECT 1 FROM json_tree(m.participant_details)
+    WHERE type = 'text'
+    AND regexp(?, value)
+  )
+  OR EXISTS (
+    -- Match name in participant handles array
+    SELECT 1 FROM json_each(m.participant_handles)
+    WHERE regexp(?, value)
+  ))
     AND m.payload IS NOT NULL
     AND EXISTS (
       SELECT 1 FROM json_each(?)
