@@ -5,10 +5,10 @@ require 'fileutils'
 require 'sqlite3'
 require 'json'
 require 'ffi'
-require_relative 'keyed_archive'
-require_relative 'attr_str'
 require 'parallel'
 require 'etc'
+require_relative 'keyed_archive'
+require_relative 'typedstream_parser'
 
 module Timer
   def self.start
@@ -65,8 +65,8 @@ $db.execute("ATTACH DATABASE '#{MESSAGES_DB}' AS messages_db; PRAGMA messages_db
 REGEX_CACHE = Hash.new { |h,k| h[k] = Regexp.new(k, Regexp::IGNORECASE) }
 $db.create_function("regexp", 2)               { |f, rx, text| f.result = REGEX_CACHE[rx].match?(text) ? 1 : 0 }
 $db.create_function("plusdigits", 1)           { |f, text| f.result = text.delete("^0-9+") }
-$db.create_function("unarchive_keyed", 1)      { |f, text| f.result = NSKeyedArchive.unarchive(text).to_json }
-$db.create_function("unarchive_attributed", 1) { |f, text| f.result = NSAttributedString.unarchive text }
+$db.create_function("unarchive_keyed", 1)      { |f, data| f.result = NSKeyedArchive.unarchive(data).to_json }
+$db.create_function("unarchive_attributed", 1) { |f, data| f.result = TypedStreamParser.new(data).extract_nsstring }
 
 Timer.lap "setup"
 
@@ -153,6 +153,63 @@ MESSAGES_EXCLUSION = <<~SQL
   )
 SQL
 
+if PARALLEL
+  # Check if messages_decoded table exists and build exclusion
+  table_exists = !$db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_decoded'").empty?
+  exclusion_rules = "#{MESSAGES_EXCLUSION}#{table_exists ? " AND NOT EXISTS (SELECT 1 FROM messages_decoded md WHERE md.id = m.ROWID)" : ""}"
+
+  # Get rows that need parallel processing
+  payload_rows = $db.execute(<<~SQL)
+    SELECT m.ROWID as id, m.payload_data
+    FROM messages_db.message m
+    WHERE m.payload_data IS NOT NULL AND #{exclusion_rules}
+  SQL
+  Timer.lap "payload query"
+
+  text_rows = $db.execute(<<~SQL)
+    SELECT m.ROWID as id, m.attributedBody
+    FROM messages_db.message m
+    WHERE m.attributedBody IS NOT NULL AND #{exclusion_rules}
+  SQL
+  Timer.lap "text query"
+
+  SQLite3::ForkSafety.suppress_warnings!
+
+  # Process payload rows in parallel
+  payload_results = Parallel.map(payload_rows, in_processes: Etc.nprocessors - 1) do |id, data|
+    [id, NSKeyedArchive.json(data)]
+  end
+  Timer.lap "payload processing (parallel) (#{payload_rows.size} items)"
+
+  # Process text rows in parallel
+  text_results = Parallel.map(text_rows, in_threads: Etc.nprocessors - 1) do |id, data|
+    [id, TypedStreamParser.new(data).extract_nsstring]
+  end
+  Timer.lap "text processing (parallel) (#{text_rows.size} items)"
+
+  # Create temp tables with results
+  $db.execute "DROP TABLE IF EXISTS temp_payloads"
+  $db.execute "CREATE TEMP TABLE temp_payloads (id INTEGER PRIMARY KEY, payload TEXT)"
+
+  $db.execute "DROP TABLE IF EXISTS temp_texts"
+  $db.execute "CREATE TEMP TABLE temp_texts (id INTEGER PRIMARY KEY, text_decoded TEXT)"
+
+  $db.transaction do
+    payload_results.each_slice(500) do |batch|
+      placeholders = (["(?,?)"] * batch.size).join(",")
+      params = batch.flatten
+      $db.execute("INSERT INTO temp_payloads (id, payload) VALUES #{placeholders}", params)
+    end
+
+    text_results.each_slice(500) do |batch|
+      placeholders = (["(?,?)"] * batch.size).join(",")
+      params = batch.flatten
+      $db.execute("INSERT INTO temp_texts (id, text_decoded) VALUES #{placeholders}", params)
+    end
+  end
+  Timer.lap "temp tables creation"
+end
+
 MESSAGES_DECODED_QUERY = <<~SQL
   WITH chat_participants AS (
     SELECT
@@ -185,63 +242,27 @@ MESSAGES_DECODED_QUERY = <<~SQL
     (SELECT cd.contact
      FROM contact_details cd
      WHERE cd.handle = mp.sender_handle) as sender_details,
-    IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
     #{if PARALLEL
-        "NULL as payload"
+        "tt.text_decoded,
+         tp.payload"
       else
-        "IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload"
+        "IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
+         IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload"
       end}
   FROM messages_db.message m
-  LEFT JOIN message_participants mp ON m.ROWID     = mp.message_id
+  LEFT JOIN message_participants mp ON m.ROWID = mp.message_id
+  #{if PARALLEL
+      "LEFT JOIN temp_texts tt ON m.ROWID = tt.id
+       LEFT JOIN temp_payloads tp ON m.ROWID = tp.id"
+    end}
   WHERE #{MESSAGES_EXCLUSION}
 SQL
 
-time = Benchmark.measure do
-  $db.execute "CREATE TABLE IF NOT EXISTS messages_decoded AS #{MESSAGES_DECODED_QUERY}"
-  $db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
-end
-puts "Messages decoded table update took: #{time.real.round(3)}s"
 
-
-if PARALLEL
-  payload_rows = $db.execute(<<~SQL)
-    SELECT md.id, m.payload_data
-    FROM messages_decoded md
-    JOIN messages_db.message m ON md.id = m.ROWID
-    WHERE m.payload_data IS NOT NULL AND md.payload IS NULL
-  SQL
-
-  SQLite3::ForkSafety.suppress_warnings!
-
-  # Process payload rows in parallel
-  payload_results = nil
-  payload_time = Benchmark.measure do
-    # payload_results = payload_rows.map do |row|
-    payload_results = Parallel.map(payload_rows, in_processes: Etc.nprocessors - 1) do |id, data|
-      [id, NSKeyedArchive.json(data)]
-    end
-  end
-
-  # Bulk update decoded results in batches
-  db_time = Benchmark.measure do
-    $db.transaction do
-      payload_results.each_slice(500) do |batch|
-        ids    = batch.map { |id, _| id }
-        cases  = batch.map { |id, _| "WHEN #{id} THEN ?" }.join(" ")
-        params = batch.map { |_, payload| payload }
-
-        $db.execute(<<~SQL, params)
-          UPDATE messages_decoded
-          SET    payload = CASE id #{cases} END
-          WHERE  id IN (#{ids.join(",")})
-        SQL
-      end
-    end
-  end
-
-  puts "Payload processing (parallel) took: #{payload_time.real.round(3)}s (#{payload_rows.size} items)"
-  puts "Database update took: #{db_time.real.round(3)}s (#{payload_results.size} records)"
-end
+$db.execute "CREATE TABLE IF NOT EXISTS messages_decoded AS #{MESSAGES_DECODED_QUERY}"
+$db.execute "CREATE INDEX IF NOT EXISTS idx_messages_decoded_id ON messages_decoded(id)"
+$db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
+Timer.lap "messages decoded table update"
 
 
 MESSAGES_QUERY = <<~SQL
