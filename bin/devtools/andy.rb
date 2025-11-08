@@ -1,5 +1,5 @@
 #!/usr/bin/env ruby
-# Development tool to query messages with 'andy' in participant details and YouTube/SoundCloud links
+# Development tool to query messages with specified name and platform URLs
 
 require_relative "../../lib/messages"
 
@@ -30,9 +30,13 @@ $db.execute <<~SQL
   LEFT JOIN messages_decoded md ON m.ROWID = md.id
 SQL
 
-# Query for messages with 'andy' in participant details and YouTube links in payload
+# Query for messages with specified name in participant details and platform links in payload
 $db.results_as_hash = true
-andy_youtube_results = $db.execute(<<~SQL)
+
+# Parameters
+name_param = ARGV[0] || "andy"
+like_params = ARGV[1] ? ARGV[1..] : ["https://www.youtube.com", "https://soundcloud.com"]
+results = $db.execute(<<~SQL, [name_param, like_params.to_json])
   SELECT
     m.id,
     m.utc_time,
@@ -48,13 +52,16 @@ andy_youtube_results = $db.execute(<<~SQL)
   LEFT JOIN message_chat_names mcn ON m.id = mcn.message_id
   WHERE
     EXISTS (
-      -- Match 'andy' only in JSON leaf string values, not keys
+      -- Match name only in JSON leaf string values, not keys
       SELECT 1 FROM json_tree(m.participant_details)
       WHERE type = 'text'
-      AND LOWER(value) LIKE '%andy%'
+      AND LOWER(value) LIKE '%' || LOWER(?) || '%'
     )
     AND m.payload IS NOT NULL
-    AND (json_extract(m.payload, '$.richLinkMetadata.URL') LIKE '%youtube%' OR json_extract(m.payload, '$.richLinkMetadata.URL') LIKE '%soundcloud%')
+    AND EXISTS (
+      SELECT 1 FROM json_each(?)
+      WHERE json_extract(m.payload, '$.richLinkMetadata.URL') LIKE '%' || value || '%'
+    )
     AND m.is_from_me = 0
   ORDER BY m.utc_time DESC
   LIMIT 20
@@ -63,8 +70,8 @@ SQL
 require 'rainbow'
 def ¢(...) = Rainbow(...)
 
-puts "Found #{andy_youtube_results.size} messages with 'andy' and YouTube links:"
-andy_youtube_results.each do |row|
+puts "Found #{results.size} messages with '#{name_param}' and #{like_params.join('/')} links:"
+results.each do |row|
   row.transform_keys(&:to_sym) => {id:, utc_time:, sender_name:, chat_name:, display_name:, title:, summary:, url:}
   chat_prefix = (display_name && !display_name.empty?) ? "via" : "with"
   from_text = chat_name ? "#{sender_name} (#{chat_prefix} #{chat_name})" : sender_name
