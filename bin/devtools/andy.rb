@@ -55,7 +55,7 @@ results = $db.execute(<<~SQL, [name_param, like_params.to_json])
       -- Match name only in JSON leaf string values, not keys
       SELECT 1 FROM json_tree(m.participant_details)
       WHERE type = 'text'
-      AND LOWER(value) LIKE '%' || LOWER(?) || '%'
+      AND regexp(?, value)
     )
     AND m.payload IS NOT NULL
     AND EXISTS (
