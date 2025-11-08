@@ -9,8 +9,14 @@ require 'plist'
 # Connect to the database
 db = SQLite3::Database.new(File.expand_path("~/Library/Messages/chat.db"))
 
-# Get all rows with payload_data
-rows = db.execute("SELECT rowid, payload_data FROM message WHERE payload_data IS NOT NULL ORDER BY date DESC")
+# Get all rows with payload_data (or row ids from argv)
+rowid_cond = ARGV.empty? ? "" : "AND rowid IN (#{ARGV.join(",")})"
+rows = db.execute("SELECT rowid, payload_data FROM message
+  WHERE
+    payload_data IS NOT NULL
+    AND (balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider') -- digital touch payload is not bplist
+    #{rowid_cond}
+    ORDER BY rowid")
 
 puts "Processing #{rows.length} records..."
 
