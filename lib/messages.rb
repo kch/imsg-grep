@@ -8,7 +8,7 @@ require 'ffi'
 require 'parallel'
 require 'etc'
 require_relative 'keyed_archive'
-require_relative 'typedstream_parser'
+require_relative 'attr_str'
 
 module Timer
   def self.start
@@ -66,7 +66,7 @@ REGEX_CACHE = Hash.new { |h,k| h[k] = Regexp.new(k, Regexp::IGNORECASE) }
 $db.create_function("regexp", 2)               { |f, rx, text| f.result = REGEX_CACHE[rx].match?(text) ? 1 : 0 }
 $db.create_function("plusdigits", 1)           { |f, text| f.result = text.delete("^0-9+") }
 $db.create_function("unarchive_keyed", 1)      { |f, data| f.result = NSKeyedArchive.unarchive(data).to_json }
-$db.create_function("unarchive_attributed", 1) { |f, data| f.result = TypedStreamParser.new(data).extract_nsstring }
+$db.create_function("unarchive_attributed", 1) { |f, data| f.result = AttributedStringExtractor.extract(data) }
 
 Timer.lap "setup"
 
@@ -183,7 +183,7 @@ if PARALLEL
 
   # Process text rows in parallel
   text_results = Parallel.map(text_rows, in_threads: Etc.nprocessors - 1) do |id, data|
-    [id, TypedStreamParser.new(data).extract_nsstring]
+    [id, AttributedStringExtractor.extract(data)]
   end
   Timer.lap "text processing (parallel) (#{text_rows.size} items)"
 
