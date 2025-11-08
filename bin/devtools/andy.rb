@@ -4,6 +4,7 @@
 require_relative "../../lib/messages"
 
 # Query for messages with 'andy' in participant details and YouTube links in payload
+$db.results_as_hash = true
 andy_youtube_results = $db.execute(<<~SQL)
   SELECT
     id,
@@ -32,13 +33,15 @@ andy_youtube_results = $db.execute(<<~SQL)
 SQL
 
 require 'rainbow'
+def ¢(...) = Rainbow(...)
 
 puts "Found #{andy_youtube_results.size} messages with 'andy' and YouTube links:"
 andy_youtube_results.each do |row|
-  from_text = row[5] && row[6] != 0 ? "#{row[3]} (via #{row[4]})" : row[3]  # chat_name, chat_style
-  puts Rainbow("ID: ").bright.magenta + Rainbow("#{row[0]}").bright.cyan + Rainbow(", Time: ").bright.magenta + Rainbow("#{row[1]}").bright.white + Rainbow(", From: ").bright.magenta + Rainbow(from_text).bright.blue
-  puts Rainbow("Title: ").bright.yellow + Rainbow("#{row[7]}").gold
-  puts Rainbow("Summary: ").bright.green + Rainbow("#{row[8]}").lime
-  puts Rainbow("URL: ").bright.red + Rainbow("#{row[9]}").aqua
-  puts Rainbow("---").gray
+  row.transform_keys(&:to_sym) => {id:, utc_time:, sender_name:, chat_name:, chat_style:,  title:, summary:, url:}
+  from_text = chat_name && chat_style != 0 ? "#{sender_name} (via #{chat_name})" : sender_name
+  puts ¢("ID: "     ).bright.magenta + ¢(id).bright.cyan + ¢(", Time: ").bright.magenta + ¢(utc_time).bright.white + ¢(", From: ").bright.magenta + ¢(from_text).bright.blue
+  puts ¢("Title: "  ).bright.yellow  + ¢(title).gold
+  puts ¢("Summary: ").bright.green   + ¢(summary).lime
+  puts ¢("URL: "    ).bright.red     + ¢(url).aqua
+  puts ¢("---"      ).gray
 end
