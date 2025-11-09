@@ -142,6 +142,9 @@ $db.execute <<~SQL
 SQL
 Timer.lap "contact details table creation"
 
+
+###
+### messages cache ahaed
 ###
 
 MESSAGES_EXCLUSION = <<~SQL
