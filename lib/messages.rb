@@ -57,7 +57,8 @@ $db.execute <<-SQL
     r.Z_PK as id,
     r.ZFIRSTNAME || ' ' || r.ZLASTNAME as name,
     e.emails as emails,
-    p.numbers as numbers
+    p.numbers as numbers,
+    IIF(r.ZCONTAINERWHERECONTACTISME IS NOT NULL, 1, 0) as is_me
   FROM contacts_db.ZABCDRECORD r
   LEFT JOIN emails e ON e.ZOWNER = r.Z_PK
   LEFT JOIN phones p ON p.ZOWNER = r.Z_PK;
@@ -88,6 +89,18 @@ $db.execute <<-SQL
   );
 SQL
 $db.execute "CREATE INDEX idx_handle_contacts ON handle_contacts(handle_id)"
+
+# Add missing handles for "me" contact (past phone numbers, etc)
+$db.execute <<-SQL
+  INSERT OR IGNORE INTO handle_contacts (handle_id, contact_id)
+  SELECT DISTINCT
+    destination_caller_id as handle_id,
+    (SELECT id FROM contacts WHERE is_me = 1 LIMIT 1) as contact_id
+  FROM messages_db.message
+  WHERE is_from_me = 1
+    AND destination_caller_id IS NOT NULL
+    AND destination_caller_id NOT IN (SELECT handle_id FROM handle_contacts);
+SQL
 Timer.lap "handle contacts table creation"
 
 # temp view: contact_details
