@@ -138,7 +138,8 @@ SQL
 if PARALLEL
   # Check if messages_decoded table exists and build exclusion
   table_exists = !$db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_decoded'").empty?
-  exclusion_rules = "#{MESSAGES_EXCLUSION}#{table_exists ? " AND NOT EXISTS (SELECT 1 FROM messages_decoded md WHERE md.id = m.ROWID)" : ""}"
+  exclusion_rules = "#{MESSAGES_EXCLUSION}"
+  exclusion_rules << " AND NOT EXISTS (SELECT 1 FROM messages_decoded md WHERE md.id = m.ROWID)" if table_exists
 
   # Get rows that need parallel processing
   payload_rows = $db.execute(<<~SQL)
