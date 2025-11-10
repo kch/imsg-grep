@@ -67,7 +67,7 @@ Timer.lap "contacts table creation"
 
 # table: handle_contacts
 # maps message handles to contact IDs:
-# handle_id  | "+14155551212"
+# handle     | "+14155551212"
 # contact_id | 42
 $db.execute "DROP TABLE IF EXISTS handle_contacts;"
 $db.execute <<-SQL
@@ -80,7 +80,7 @@ $db.execute <<-SQL
     WHERE destination_caller_id IS NOT NULL
   )
   SELECT
-    h.handle as handle_id,
+    h.handle as handle,
     c.id as contact_id
   FROM all_handles h
   JOIN contacts c ON (
@@ -88,18 +88,19 @@ $db.execute <<-SQL
     EXISTS (SELECT 1 FROM json_each(c.emails) WHERE h.handle = value)
   );
 SQL
-$db.execute "CREATE INDEX idx_handle_contacts ON handle_contacts(handle_id)"
+$db.execute "CREATE INDEX idx_handle_contacts ON handle_contacts(handle)"
+Timer.lap "handle contacts table creation-"
 
 # Add missing handles for "me" contact (past phone numbers, etc)
 $db.execute <<-SQL
-  INSERT OR IGNORE INTO handle_contacts (handle_id, contact_id)
+  INSERT OR IGNORE INTO handle_contacts (handle, contact_id)
   SELECT DISTINCT
-    destination_caller_id as handle_id,
+    destination_caller_id as handle,
     (SELECT id FROM contacts WHERE is_me = 1 LIMIT 1) as contact_id
   FROM messages_db.message
   WHERE is_from_me = 1
     AND destination_caller_id IS NOT NULL
-    AND destination_caller_id NOT IN (SELECT handle_id FROM handle_contacts);
+    AND destination_caller_id NOT IN (SELECT handle FROM handle_contacts);
 SQL
 Timer.lap "handle contacts table creation"
 
@@ -112,7 +113,7 @@ Timer.lap "handle contacts table creation"
 $db.execute <<~SQL
   CREATE TEMP VIEW contact_details AS
   SELECT
-    h.handle_id as handle,
+    h.handle as handle,
     json_object(
       'name',    c.name,
       'emails',  json(COALESCE(c.emails, '[]')),
