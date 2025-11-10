@@ -67,6 +67,7 @@ results = $db.execute(<<~SQL, [name_param, name_param, like_params.to_json])
 SQL
 
 
+require 'time'
 require 'rainbow'
 def ¢(...) = Rainbow(...)
 
@@ -75,7 +76,8 @@ results.each do |row|
   row.transform_keys(&:to_sym) => {id:, utc_time:, sender_name:, chat_name:, display_name:, title:, summary:, url:}
   chat_prefix = (display_name && !display_name.empty?) ? "via" : "with"
   from_text = chat_name ? "#{sender_name} (#{chat_prefix} #{chat_name})" : sender_name
-  puts ¢("ID: "     ).bright.magenta + ¢(id).bright.cyan + ¢(", Time: ").bright.magenta + ¢(utc_time).bright.white + ¢(", From: ").bright.magenta + ¢(from_text).bright.blue
+  local_time = Time.parse(utc_time+"Z").getlocal
+  puts ¢("ID: "     ).bright.magenta + ¢(id).bright.cyan + ¢(", Time: ").bright.magenta + ¢(local_time).bright.white + ¢(", From: ").bright.magenta + ¢(from_text).bright.blue
   puts ¢("Title: "  ).bright.yellow  + ¢(title).gold
   puts ¢("Summary: ").bright.green   + ¢(summary).lime
   puts ¢("URL: "    ).bright.red     + ¢(url).aqua
