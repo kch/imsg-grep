@@ -146,18 +146,10 @@ if PARALLEL
   end
 
   # Get rows that need parallel processing
-  payload_rows = $db.execute(<<~SQL)
-    SELECT m.ROWID as id, m.payload_data
-    FROM messages_db.message m
-    WHERE m.payload_data IS NOT NULL AND #{exclusion_rules}
-  SQL
+  payload_rows = $db.execute "SELECT ROWID as id, payload_data FROM messages_db.message m WHERE payload_data IS NOT NULL AND #{exclusion_rules}"
   Timer.lap "payload_data loaded"
 
-  text_rows = $db.execute(<<~SQL)
-    SELECT m.ROWID as id, m.attributedBody
-    FROM messages_db.message m
-    WHERE m.attributedBody IS NOT NULL AND #{exclusion_rules}
-  SQL
+  text_rows = $db.execute "SELECT ROWID as id, attributedBody FROM messages_db.message m WHERE attributedBody IS NOT NULL AND #{exclusion_rules}"
   Timer.lap "attributedBody loaded"
 
   SQLite3::ForkSafety.suppress_warnings!
