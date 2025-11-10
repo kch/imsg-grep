@@ -63,7 +63,7 @@ $db.execute <<-SQL
   LEFT JOIN emails e ON e.ZOWNER = r.Z_PK
   LEFT JOIN phones p ON p.ZOWNER = r.Z_PK;
 SQL
-Timer.lap "contacts table creation"
+Timer.lap "contacts table created"
 
 # table: handle_contacts
 # maps message handles to contact IDs:
@@ -89,7 +89,7 @@ $db.execute <<-SQL
   );
 SQL
 $db.execute "CREATE UNIQUE INDEX idx_handle_contacts_unique ON handle_contacts(handle, contact_id)"
-Timer.lap "handle contacts table creation-"
+Timer.lap "handle_contacts table created, indexed"
 
 # Add missing handles for "me" contact (past phone numbers, etc)
 $db.execute <<-SQL
@@ -102,7 +102,7 @@ $db.execute <<-SQL
     AND destination_caller_id IS NOT NULL
     AND destination_caller_id NOT IN (SELECT handle FROM handle_contacts);
 SQL
-Timer.lap "handle contacts table creation"
+Timer.lap "handle_contacts table updated from messages"
 
 # temp view: contact_details
 # maps handles to full contact info as json
@@ -122,7 +122,7 @@ $db.execute <<~SQL
   FROM handle_contacts h
   JOIN contacts c ON c.id = h.contact_id;
 SQL
-Timer.lap "contact details table creation"
+Timer.lap "contact_details view created"
 
 
 ###
@@ -151,14 +151,14 @@ if PARALLEL
     FROM messages_db.message m
     WHERE m.payload_data IS NOT NULL AND #{exclusion_rules}
   SQL
-  Timer.lap "payload query"
+  Timer.lap "payload_data loaded"
 
   text_rows = $db.execute(<<~SQL)
     SELECT m.ROWID as id, m.attributedBody
     FROM messages_db.message m
     WHERE m.attributedBody IS NOT NULL AND #{exclusion_rules}
   SQL
-  Timer.lap "text query"
+  Timer.lap "attributedBody loaded"
 
   SQLite3::ForkSafety.suppress_warnings!
 
@@ -166,13 +166,13 @@ if PARALLEL
   payload_results = Parallel.map(payload_rows, in_processes: Etc.nprocessors - 1) do |id, data|
     [id, NSKeyedArchive.json(data)]
   end
-  Timer.lap "payload processing (parallel) (#{payload_rows.size} items)"
+  Timer.lap "payload_data unarchived (parallel) (#{payload_rows.size} items)"
 
   # Process text rows in parallel
   text_results = Parallel.map(text_rows, in_threads: Etc.nprocessors - 1) do |id, data|
     [id, AttributedStringExtractor.extract(data)]
   end
-  Timer.lap "text processing (parallel) (#{text_rows.size} items)"
+  Timer.lap "attributedBody unarchived (parallel) (#{text_rows.size} items)"
 
   # Create temp tables with results
   $db.execute "DROP TABLE IF EXISTS temp_payloads"
@@ -194,7 +194,7 @@ if PARALLEL
       $db.execute("INSERT INTO temp_texts (id, text_decoded) VALUES #{placeholders}", params)
     end
   end
-  Timer.lap "temp tables creation"
+  Timer.lap "attributedBody, payload_data in temp tables"
 end
 
 MESSAGES_DECODED_QUERY = <<~SQL
@@ -257,7 +257,7 @@ SQL
 $db.execute "CREATE TABLE IF NOT EXISTS messages_decoded AS #{MESSAGES_DECODED_QUERY}"
 $db.execute "CREATE INDEX IF NOT EXISTS idx_messages_decoded_id ON messages_decoded(id)"
 $db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
-Timer.lap "messages decoded table update"
+Timer.lap "messages_decoded table updated"
 
 
 MESSAGES_QUERY = <<~SQL
@@ -284,7 +284,7 @@ MESSAGES_QUERY = <<~SQL
 SQL
 
 $db.execute "CREATE TEMP VIEW messages AS #{MESSAGES_QUERY}"
-Timer.lap "messages view creation"
+Timer.lap "messages view created"
 Timer.finish
 
 
