@@ -267,12 +267,13 @@ if !synced_messages
 end # if !synced_messages
 
 
+APPLE_EPOCH = 978307200
 MESSAGES_QUERY = <<~SQL
   SELECT
     m.ROWID as id,
     d.guid,
     d.sender_handle,
-    datetime((m.date / 1000000000) + 978307200, 'unixepoch') as utc_time,
+    datetime((m.date / 1000000000) + #{APPLE_EPOCH}, 'unixepoch') as utc_time,
     c.style as chat_style,
     c.display_name as chat_name,
     d.participant_handles,
