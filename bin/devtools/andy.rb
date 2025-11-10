@@ -3,31 +3,32 @@
 
 require_relative "../../lib/messages"
 
-# Create temp view for chat names keyed by message_id
+# Create temp view for chat names keyed by chat_id
 $db.execute <<~SQL
-  CREATE TEMP VIEW message_chat_names AS
+  CREATE TEMP VIEW chat_names AS
+  WITH distinct_handles AS (
+    SELECT DISTINCT cmj.chat_id, md.participant_handles
+    FROM messages_db.chat_message_join cmj
+    JOIN messages_decoded md ON cmj.message_id = md.id
+    WHERE md.participant_handles IS NOT NULL
+  ),
+  chat_participants AS (
+    SELECT DISTINCT dh.chat_id, value as handle
+    FROM distinct_handles dh
+    JOIN json_each(dh.participant_handles)
+  )
   SELECT
-    m.ROWID as message_id,
+    c.ROWID as chat_id,
     c.display_name,
-    CASE
-      WHEN c.ROWID IS NOT NULL AND c.style != 0 AND json_array_length(md.participant_handles) > 2 THEN
-        COALESCE(
-          NULLIF(c.display_name, ''),
-          (SELECT group_concat(
-            COALESCE(
-              json_extract(cd.contact, '$.name'),
-              value
-            ), ', '
-          )
-          FROM json_each(md.participant_handles)
-          LEFT JOIN contact_details cd ON cd.handle = value)
-        )
-      ELSE NULL
-    END as name
-  FROM messages_db.message m
-  LEFT JOIN messages_db.chat_message_join cm ON m.ROWID = cm.message_id
-  LEFT JOIN messages_db.chat c ON cm.chat_id = c.ROWID
-  LEFT JOIN messages_decoded md ON m.ROWID = md.id
+    COALESCE(
+      NULLIF(c.display_name, ''),
+      (SELECT group_concat(COALESCE(ct.name, cp.handle), ', ')
+       FROM chat_participants cp
+       LEFT JOIN handle_contacts hc ON hc.handle = cp.handle
+       LEFT JOIN contacts ct ON ct.id = hc.contact_id
+       WHERE cp.chat_id = c.ROWID)
+    ) as name
+  FROM messages_db.chat c
 SQL
 
 # Query for messages with specified name in participant details and platform links in payload
@@ -42,14 +43,15 @@ results = $db.execute(<<~SQL, [name_param, name_param, like_params.to_json])
     m.utc_time,
     m.sender_handle,
     COALESCE(json_extract(m.sender_details, '$.name'), m.sender_handle) as sender_name,
-    mcn.name as chat_name,
-    mcn.display_name,
+    cn.name as chat_name,
+    cn.display_name,
     m.participant_details,
     json_extract(m.payload, '$.richLinkMetadata.title') as title,
     json_extract(m.payload, '$.richLinkMetadata.summary') as summary,
     json_extract(m.payload, '$.richLinkMetadata.URL') as url
   FROM messages m
-  LEFT JOIN message_chat_names mcn ON m.id = mcn.message_id
+  LEFT JOIN messages_db.chat_message_join cmj ON m.id = cmj.message_id
+  LEFT JOIN chat_names cn ON cmj.chat_id = cn.chat_id
   WHERE
     m.payload IS NOT NULL
     AND m.is_from_me = 0
@@ -71,6 +73,7 @@ results = $db.execute(<<~SQL, [name_param, name_param, like_params.to_json])
   ORDER BY m.utc_time DESC
   LIMIT 20
 SQL
+
 
 require 'rainbow'
 def ¢(...) = Rainbow(...)
