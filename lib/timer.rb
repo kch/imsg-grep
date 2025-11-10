@@ -25,7 +25,7 @@ module Timer
     longest_line = @laps.map { |lap| lap[:line].length }.max
     start_col = longest_line + 3
     @laps.reverse.each do |lap|
-      pct = (lap[:time] / @total_time * 100).round(1)
+      pct = "%4.1f" % (lap[:time] / @total_time * 100)
       bar_length = (lap[:time] / max_lap_time * 20).round
       bar = "█" * bar_length + "░" * (20 - bar_length)
       padding = " " * [0, start_col - lap[:line].length].max
