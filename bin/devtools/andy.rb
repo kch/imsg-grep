@@ -55,21 +55,13 @@ results = $db.execute(<<~SQL, [name_param, name_param, like_params.to_json])
   WHERE
     m.payload IS NOT NULL
     AND m.is_from_me = 0
-    AND (EXISTS (
+    AND (
       -- Match sender only in JSON leaf string values, not keys
-      SELECT 1 FROM json_tree(m.participant_details)
-      WHERE type = 'text'
-      AND regexp(?, value)
-    )
-    OR EXISTS (
+      EXISTS (SELECT 1 FROM json_tree(m.participant_details) WHERE type = 'text' AND regexp(?, value))
       -- Match sender in participant handles array (senders not in contacts need to be matched by handle only)
-      SELECT 1 FROM json_each(m.participant_handles)
-      WHERE regexp(?, value)
-    ))
-  AND EXISTS (
-    SELECT 1 FROM json_each(?)
-    WHERE json_extract(m.payload, '$.richLinkMetadata.URL') LIKE '%' || value || '%'
-  )
+      OR EXISTS (SELECT 1 FROM json_each(m.participant_handles) WHERE regexp(?, value)))
+    --  match urls
+    AND EXISTS (SELECT 1 FROM json_each(?) WHERE json_extract(m.payload, '$.richLinkMetadata.URL') LIKE '%' || value || '%')
   ORDER BY m.utc_time DESC
   LIMIT 20
 SQL
