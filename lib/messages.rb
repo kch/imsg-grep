@@ -138,9 +138,12 @@ SQL
 
 if PARALLEL
   # Check if messages_decoded table exists and build exclusion
-  table_exists = !$db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_decoded'").empty?
+  table_exists = $db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_decoded'").any?
   exclusion_rules = "#{MESSAGES_EXCLUSION}"
-  exclusion_rules << " AND NOT EXISTS (SELECT 1 FROM messages_decoded md WHERE md.id = m.ROWID)" if table_exists
+  if table_exists
+    last_row, = $db.execute("SELECT COALESCE(MAX(id), 0) FROM messages_decoded").flatten
+    exclusion_rules << " AND m.ROWID > #{last_row}" if last_row
+  end
 
   # Get rows that need parallel processing
   payload_rows = $db.execute(<<~SQL)
@@ -221,7 +224,7 @@ MESSAGES_DECODED_QUERY = <<~SQL
     LEFT JOIN messages_db.chat_message_join cm ON m.ROWID = cm.message_id
     LEFT JOIN messages_db.chat c ON cm.chat_id = c.ROWID
     LEFT JOIN chat_participants p ON c.ROWID = p.chat_id
-    WHERE #{MESSAGES_EXCLUSION}
+    WHERE #{exclusion_rules}
   )
   SELECT
     m.ROWID as id,
@@ -247,7 +250,7 @@ MESSAGES_DECODED_QUERY = <<~SQL
       "LEFT JOIN temp_texts tt ON m.ROWID = tt.id
        LEFT JOIN temp_payloads tp ON m.ROWID = tp.id"
     end}
-  WHERE #{MESSAGES_EXCLUSION}
+  WHERE #{exclusion_rules}
 SQL
 
 
