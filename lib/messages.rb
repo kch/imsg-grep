@@ -34,217 +34,237 @@ $db.create_function("plusdigits", 1)           { |f, text| f.result = text.delet
 $db.create_function("unarchive_keyed", 1)      { |f, data| f.result = NSKeyedArchive.unarchive(data).to_json }
 $db.create_function("unarchive_attributed", 1) { |f, data| f.result = AttributedStringExtractor.extract(data) }
 
-Timer.lap "setup"
 
-# table: contacts
-# all contacts, like:
-# id      | 42
-# name    | "John Smith"
-# emails  | ["john@gmail.com", "john@work.com"]
-# numbers | ["+14155551212", "+14155551213"]
-$db.execute <<-SQL
-  CREATE TEMP TABLE contacts AS
-  WITH emails AS (
-    SELECT ZOWNER, json_group_array(ZADDRESS) as emails
-    FROM contacts_db.ZABCDEMAILADDRESS GROUP BY ZOWNER
-  ),
-  phones AS (
-    SELECT ZOWNER, json_group_array(plusdigits(ZFULLNUMBER)) as numbers
-    FROM contacts_db.ZABCDPHONENUMBER GROUP BY ZOWNER
-  )
+### Sync state stuff
+
+$db.execute "CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY, value)"
+sync_state = $db.execute("SELECT key, value FROM sync_state").to_h
+new_state  = $db.prepare(<<~SQL).execute.next_hash
   SELECT
-    r.Z_PK as id,
-    r.ZFIRSTNAME || ' ' || r.ZLASTNAME as name,
-    e.emails as emails,
-    p.numbers as numbers,
-    IIF(r.ZCONTAINERWHERECONTACTISME IS NOT NULL, 1, 0) as is_me
-  FROM contacts_db.ZABCDRECORD r
-  LEFT JOIN emails e ON e.ZOWNER = r.Z_PK
-  LEFT JOIN phones p ON p.ZOWNER = r.Z_PK;
+    (SELECT MAX(ZTIMESTAMP) FROM contacts_db.ATRANSACTION) as contacts_timestamp,
+    (SELECT seq FROM messages_db.sqlite_sequence WHERE name = 'message') as messages_sequence
 SQL
-Timer.lap "contacts table created"
 
-# table: handle_contacts
-# maps message handles to contact IDs:
-# handle     | "+14155551212"
-# contact_id | 42
-$db.execute <<-SQL
-  CREATE TEMP TABLE handle_contacts AS
-  WITH all_handles AS (
-    SELECT DISTINCT id as handle FROM messages_db.handle
-    UNION
-    SELECT DISTINCT destination_caller_id as handle
-    FROM messages_db.message
-    WHERE destination_caller_id IS NOT NULL
-  )
-  SELECT
-    h.handle as handle,
-    c.id as contact_id
-  FROM all_handles h
-  JOIN contacts c ON (
-    EXISTS (SELECT 1 FROM json_each(c.numbers) WHERE h.handle = value) OR
-    EXISTS (SELECT 1 FROM json_each(c.emails) WHERE h.handle = value)
-  );
-SQL
-$db.execute "CREATE UNIQUE INDEX idx_handle_contacts_unique ON handle_contacts(handle, contact_id)"
-Timer.lap "handle_contacts table created, indexed"
-
-# Add missing handles for "me" contact (past phone numbers, etc)
-$db.execute <<-SQL
-  INSERT OR IGNORE INTO handle_contacts (handle, contact_id)
-  SELECT DISTINCT
-    destination_caller_id as handle,
-    (SELECT id FROM contacts WHERE is_me = 1 LIMIT 1) as contact_id
-  FROM messages_db.message
-  WHERE is_from_me = 1
-    AND destination_caller_id IS NOT NULL
-    AND destination_caller_id NOT IN (SELECT handle FROM handle_contacts);
-SQL
-Timer.lap "handle_contacts table updated from messages"
-
-# temp view: contact_details
-# maps handles to full contact info as json
-# handle   | "+14155551212"
-# contact  | { "name":    "John Smith",
-#          |   "emails":  ["john@gmail.com", "john@work.com"],
-#          |   "numbers": ["+14155551212", "+14155551213"] }
-$db.execute <<~SQL
-  CREATE TEMP VIEW contact_details AS
-  SELECT
-    h.handle as handle,
-    json_object(
-      'name',    c.name,
-      'emails',  json(COALESCE(c.emails, '[]')),
-      'numbers', json(COALESCE(c.numbers, '[]'))
-    ) as contact
-  FROM handle_contacts h
-  JOIN contacts c ON c.id = h.contact_id;
-SQL
-Timer.lap "contact_details view created"
+synced_contacts, synced_messages = [sync_state, new_state].map{ it.values_at "contacts_timestamp", "messages_sequence" }.transpose.map{_1==_2}
 
 
-###
-### messages cache ahaed
-###
+### Messages to ignore completely
 
 MESSAGES_EXCLUSION = <<~SQL
-  (
-    (associated_message_type IS NULL OR associated_message_type < 2000)                              -- # Exclude metadata/reaction messages
+  ( (associated_message_type IS NULL OR associated_message_type < 2000)                              -- # Exclude metadata/reaction messages
     AND (balloon_bundle_id IS NULL OR balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider')  -- # Digital touch lol; another check: substr(hex(payload_data), 1, 8) = '08081100'
   )
 SQL
 
-exclusion_rules = "#{MESSAGES_EXCLUSION}"
 # Check if messages_decoded table exists and build exclusion
-table_exists = $db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_decoded'").any?
-if table_exists
-  last_row, = $db.execute("SELECT COALESCE(MAX(id), 0) FROM messages_decoded").flatten
-  exclusion_rules << " AND m.ROWID > #{last_row}" if last_row
-end
+exclusion_rules = "#{MESSAGES_EXCLUSION}"
+last_row = sync_state["messages_sequence"]                   # a roundabout way to get this value but since we already have it…
+exclusion_rules << " AND m.ROWID > #{last_row}" if last_row  # exclude messages previously imported
 
-if PARALLEL
-  # Get rows that need parallel processing
-  payload_rows = $db.execute "SELECT ROWID as id, payload_data FROM messages_db.message m WHERE payload_data IS NOT NULL AND #{exclusion_rules}"
-  Timer.lap "payload_data loaded"
 
-  text_rows = $db.execute "SELECT ROWID as id, attributedBody FROM messages_db.message m WHERE attributedBody IS NOT NULL AND #{exclusion_rules}"
-  Timer.lap "attributedBody loaded"
+Timer.lap "setup"
 
-  SQLite3::ForkSafety.suppress_warnings!
 
-  # Process payload rows in parallel
-  payload_results = Parallel.map(payload_rows, in_processes: Etc.nprocessors - 1) do |id, data|
-    [id, NSKeyedArchive.json(data)]
-  end
-  Timer.lap "payload_data unarchived (parallel) (#{payload_rows.size} items)"
+### Begin fancy db stuff
 
-  # Process text rows in parallel
-  text_results = Parallel.map(text_rows, in_threads: Etc.nprocessors - 1) do |id, data|
-    [id, AttributedStringExtractor.extract(data)]
-  end
-  Timer.lap "attributedBody unarchived (parallel) (#{text_rows.size} items)"
-
-  # Create temp tables with results
-  $db.execute "CREATE TEMP TABLE temp_payloads (id INTEGER PRIMARY KEY, payload TEXT)"
-  $db.execute "CREATE TEMP TABLE temp_texts (id INTEGER PRIMARY KEY, text_decoded TEXT)"
-
-  $db.transaction do
-    payload_results.each_slice(500) do |batch|
-      placeholders = (["(?,?)"] * batch.size).join(",")
-      params = batch.flatten
-      $db.execute("INSERT INTO temp_payloads (id, payload) VALUES #{placeholders}", params)
-    end
-
-    text_results.each_slice(500) do |batch|
-      placeholders = (["(?,?)"] * batch.size).join(",")
-      params = batch.flatten
-      $db.execute("INSERT INTO temp_texts (id, text_decoded) VALUES #{placeholders}", params)
-    end
-  end
-  Timer.lap "attributedBody, payload_data in temp tables"
-end
-
-MESSAGES_DECODED_QUERY = <<~SQL
-  WITH chat_participants AS (
+if !synced_contacts && !synced_messages
+  # table: contacts
+  # all contacts, like:
+  # id      | 42
+  # name    | "John Smith"
+  # emails  | ["john@gmail.com", "john@work.com"]
+  # numbers | ["+14155551212", "+14155551213"]
+  $db.execute "DROP TABLE IF EXISTS contacts"
+  $db.execute <<-SQL
+    CREATE TABLE contacts AS
+    WITH emails AS (
+      SELECT ZOWNER, json_group_array(ZADDRESS) as emails
+      FROM contacts_db.ZABCDEMAILADDRESS GROUP BY ZOWNER
+    ),
+    phones AS (
+      SELECT ZOWNER, json_group_array(plusdigits(ZFULLNUMBER)) as numbers
+      FROM contacts_db.ZABCDPHONENUMBER GROUP BY ZOWNER
+    )
     SELECT
-      chat_id,
-      jsonb_group_array(h.id) as participant_handles
-    FROM messages_db.chat_handle_join chj
-    JOIN messages_db.handle h ON chj.handle_id = h.ROWID
-    GROUP BY chat_id
-  ),
-  message_participants AS (
+      r.Z_PK as id,
+      r.ZFIRSTNAME || ' ' || r.ZLASTNAME as name,
+      e.emails as emails,
+      p.numbers as numbers,
+      IIF(r.ZCONTAINERWHERECONTACTISME IS NOT NULL, 1, 0) as is_me
+    FROM contacts_db.ZABCDRECORD r
+    LEFT JOIN emails e ON e.ZOWNER = r.Z_PK
+    LEFT JOIN phones p ON p.ZOWNER = r.Z_PK;
+  SQL
+  Timer.lap "contacts table created"
+
+  # table: handle_contacts
+  # maps message handles to contact IDs:
+  # handle     | "+14155551212"
+  # contact_id | 42
+  $db.execute "DROP TABLE IF EXISTS handle_contacts"
+  $db.execute <<-SQL
+    CREATE TABLE handle_contacts AS
+    WITH all_handles AS (
+      SELECT DISTINCT id as handle FROM messages_db.handle
+      UNION
+      SELECT DISTINCT destination_caller_id as handle
+      FROM messages_db.message
+      WHERE destination_caller_id IS NOT NULL
+    )
     SELECT
-      m.ROWID as message_id,
-      (SELECT json_group_array(value) FROM (
-        SELECT DISTINCT value FROM (
-          SELECT value FROM json_each(p.participant_handles)
-          UNION ALL
-          SELECT m.destination_caller_id WHERE m.destination_caller_id IS NOT NULL
-          UNION ALL
-          SELECT h.id WHERE h.id IS NOT NULL
-        )
-      )) as participant_handles,
-      IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle
+      h.handle as handle,
+      c.id as contact_id
+    FROM all_handles h
+    JOIN contacts c ON (
+      EXISTS (SELECT 1 FROM json_each(c.numbers) WHERE h.handle = value) OR
+      EXISTS (SELECT 1 FROM json_each(c.emails) WHERE h.handle = value)
+    );
+  SQL
+  $db.execute "CREATE UNIQUE INDEX idx_handle_contacts_unique ON handle_contacts(handle, contact_id)"
+  Timer.lap "handle_contacts table created, indexed"
+
+  # Add missing handles for "me" contact (past phone numbers, etc)
+  $db.execute <<-SQL
+    INSERT OR IGNORE INTO handle_contacts (handle, contact_id)
+    SELECT DISTINCT
+      destination_caller_id as handle,
+      (SELECT id FROM contacts WHERE is_me = 1 LIMIT 1) as contact_id
+    FROM messages_db.message
+    WHERE is_from_me = 1
+      AND destination_caller_id IS NOT NULL
+      AND destination_caller_id NOT IN (SELECT handle FROM handle_contacts);
+  SQL
+  Timer.lap "handle_contacts table updated from messages"
+
+  # view: contact_details
+  # maps handles to full contact info as json
+  # handle   | "+14155551212"
+  # contact  | { "name":    "John Smith",
+  #          |   "emails":  ["john@gmail.com", "john@work.com"],
+  #          |   "numbers": ["+14155551212", "+14155551213"] }
+  $db.execute <<~SQL
+    CREATE VIEW contact_details AS
+    SELECT
+      h.handle as handle,
+      json_object(
+        'name',    c.name,
+        'emails',  json(COALESCE(c.emails, '[]')),
+        'numbers', json(COALESCE(c.numbers, '[]'))
+      ) as contact
+    FROM handle_contacts h
+    JOIN contacts c ON c.id = h.contact_id;
+  SQL
+  Timer.lap "contact_details view created"
+end # if !synced_contacts && !synced_messages
+
+
+### messages cache ahaed
+if !synced_messages
+
+  if PARALLEL
+    # Get rows that need parallel processing
+    payload_rows = $db.execute "SELECT ROWID as id, payload_data FROM messages_db.message m WHERE payload_data IS NOT NULL AND #{exclusion_rules}"
+    Timer.lap "payload_data loaded"
+
+    text_rows = $db.execute "SELECT ROWID as id, attributedBody FROM messages_db.message m WHERE attributedBody IS NOT NULL AND #{exclusion_rules}"
+    Timer.lap "attributedBody loaded"
+
+    SQLite3::ForkSafety.suppress_warnings!
+
+    # Process payload rows in parallel
+    payload_results = Parallel.map(payload_rows, in_processes: Etc.nprocessors - 1) do |id, data|
+      [id, NSKeyedArchive.json(data)]
+    end
+    Timer.lap "payload_data unarchived (parallel) (#{payload_rows.size} items)"
+
+    # Process text rows in parallel
+    text_results = Parallel.map(text_rows, in_threads: Etc.nprocessors - 1) do |id, data|
+      [id, AttributedStringExtractor.extract(data)]
+    end
+    Timer.lap "attributedBody unarchived (parallel) (#{text_rows.size} items)"
+
+    # Create temp tables with results
+    $db.execute "CREATE TEMP TABLE temp_payloads (id INTEGER PRIMARY KEY, payload TEXT)"
+    $db.execute "CREATE TEMP TABLE temp_texts (id INTEGER PRIMARY KEY, text_decoded TEXT)"
+
+    $db.transaction do
+      payload_results.each_slice(500) do |batch|
+        placeholders = (["(?,?)"] * batch.size).join(",")
+        params = batch.flatten
+        $db.execute("INSERT INTO temp_payloads (id, payload) VALUES #{placeholders}", params)
+      end
+
+      text_results.each_slice(500) do |batch|
+        placeholders = (["(?,?)"] * batch.size).join(",")
+        params = batch.flatten
+        $db.execute("INSERT INTO temp_texts (id, text_decoded) VALUES #{placeholders}", params)
+      end
+    end
+    Timer.lap "attributedBody, payload_data in temp tables"
+  end
+
+  MESSAGES_DECODED_QUERY = <<~SQL
+    WITH chat_participants AS (
+      SELECT
+        chat_id,
+        jsonb_group_array(h.id) as participant_handles
+      FROM messages_db.chat_handle_join chj
+      JOIN messages_db.handle h ON chj.handle_id = h.ROWID
+      GROUP BY chat_id
+    ),
+    message_participants AS (
+      SELECT
+        m.ROWID as message_id,
+        (SELECT json_group_array(value) FROM (
+          SELECT DISTINCT value FROM (
+            SELECT value FROM json_each(p.participant_handles)
+            UNION ALL
+            SELECT m.destination_caller_id WHERE m.destination_caller_id IS NOT NULL
+            UNION ALL
+            SELECT h.id WHERE h.id IS NOT NULL
+          )
+        )) as participant_handles,
+        IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle
+      FROM messages_db.message m
+      LEFT JOIN messages_db.handle h ON m.handle_id = h.ROWID
+      LEFT JOIN messages_db.chat_message_join cm ON m.ROWID = cm.message_id
+      LEFT JOIN messages_db.chat c ON cm.chat_id = c.ROWID
+      LEFT JOIN chat_participants p ON c.ROWID = p.chat_id
+      WHERE #{exclusion_rules}
+    )
+    SELECT
+      m.ROWID as id,
+      m.guid,
+      mp.sender_handle,
+      mp.participant_handles,
+      (SELECT json_group_array(json(cd.contact))
+      FROM contact_details cd, json_each(mp.participant_handles) ph
+      WHERE cd.handle = ph.value) as participant_details,
+      (SELECT cd.contact
+      FROM contact_details cd
+      WHERE cd.handle = mp.sender_handle) as sender_details,
+      #{if PARALLEL
+          "tt.text_decoded,
+          tp.payload"
+        else
+          "IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
+          IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload"
+        end}
     FROM messages_db.message m
-    LEFT JOIN messages_db.handle h ON m.handle_id = h.ROWID
-    LEFT JOIN messages_db.chat_message_join cm ON m.ROWID = cm.message_id
-    LEFT JOIN messages_db.chat c ON cm.chat_id = c.ROWID
-    LEFT JOIN chat_participants p ON c.ROWID = p.chat_id
-    WHERE #{exclusion_rules}
-  )
-  SELECT
-    m.ROWID as id,
-    m.guid,
-    mp.sender_handle,
-    mp.participant_handles,
-    (SELECT json_group_array(json(cd.contact))
-     FROM contact_details cd, json_each(mp.participant_handles) ph
-     WHERE cd.handle = ph.value) as participant_details,
-    (SELECT cd.contact
-     FROM contact_details cd
-     WHERE cd.handle = mp.sender_handle) as sender_details,
+    LEFT JOIN message_participants mp ON m.ROWID = mp.message_id
     #{if PARALLEL
-        "tt.text_decoded,
-         tp.payload"
-      else
-        "IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
-         IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload"
+        "LEFT JOIN temp_texts    tt ON m.ROWID = tt.id
+        LEFT JOIN temp_payloads tp ON m.ROWID = tp.id"
       end}
-  FROM messages_db.message m
-  LEFT JOIN message_participants mp ON m.ROWID = mp.message_id
-  #{if PARALLEL
-      "LEFT JOIN temp_texts    tt ON m.ROWID = tt.id
-       LEFT JOIN temp_payloads tp ON m.ROWID = tp.id"
-    end}
-  WHERE #{exclusion_rules}
-SQL
+    WHERE #{exclusion_rules}
+  SQL
 
 
-$db.execute "CREATE TABLE IF NOT EXISTS messages_decoded AS #{MESSAGES_DECODED_QUERY}"
-$db.execute "CREATE INDEX IF NOT EXISTS idx_messages_decoded_id ON messages_decoded(id)"
-$db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
-Timer.lap "messages_decoded table updated"
+  $db.execute "CREATE TABLE IF NOT EXISTS messages_decoded AS #{MESSAGES_DECODED_QUERY}"
+  $db.execute "CREATE INDEX IF NOT EXISTS idx_messages_decoded_id ON messages_decoded(id)"
+  $db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
+  Timer.lap "messages_decoded table updated"
+end # if !synced_messages
 
 
 MESSAGES_QUERY = <<~SQL
@@ -272,6 +292,11 @@ SQL
 
 $db.execute "CREATE TEMP VIEW messages AS #{MESSAGES_QUERY}"
 Timer.lap "messages view created"
+
+
+# Update cache with fresh values
+$db.execute "INSERT OR REPLACE INTO sync_state (key, value) VALUES ('contacts_timestamp', ?), ('messages_sequence', ?)", new_state.values_at("contacts_timestamp", "messages_sequence")
+
 Timer.finish
 
 
