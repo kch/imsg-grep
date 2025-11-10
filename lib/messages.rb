@@ -239,7 +239,7 @@ MESSAGES_DECODED_QUERY = <<~SQL
   FROM messages_db.message m
   LEFT JOIN message_participants mp ON m.ROWID = mp.message_id
   #{if PARALLEL
-      "LEFT JOIN temp_texts tt ON m.ROWID = tt.id
+      "LEFT JOIN temp_texts    tt ON m.ROWID = tt.id
        LEFT JOIN temp_payloads tp ON m.ROWID = tp.id"
     end}
   WHERE #{exclusion_rules}
