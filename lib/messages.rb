@@ -198,7 +198,7 @@ MESSAGES_DECODED_QUERY = <<~SQL
   WITH chat_participants AS (
     SELECT
       chat_id,
-      json_group_array(h.id) as participant_handles
+      jsonb_group_array(h.id) as participant_handles
     FROM messages_db.chat_handle_join chj
     JOIN messages_db.handle h ON chj.handle_id = h.ROWID
     GROUP BY chat_id
@@ -206,7 +206,15 @@ MESSAGES_DECODED_QUERY = <<~SQL
   message_participants AS (
     SELECT
       m.ROWID as message_id,
-      IIF(m.destination_caller_id IS NOT NULL, json_insert(p.participant_handles, '$[#]', m.destination_caller_id), p.participant_handles) as participant_handles,
+      (SELECT json_group_array(value) FROM (
+        SELECT DISTINCT value FROM (
+          SELECT value FROM json_each(p.participant_handles)
+          UNION ALL
+          SELECT m.destination_caller_id WHERE m.destination_caller_id IS NOT NULL
+          UNION ALL
+          SELECT h.id WHERE h.id IS NOT NULL
+        )
+      )) as participant_handles,
       IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle
     FROM messages_db.message m
     LEFT JOIN messages_db.handle h ON m.handle_id = h.ROWID
