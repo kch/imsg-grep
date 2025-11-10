@@ -136,15 +136,15 @@ MESSAGES_EXCLUSION = <<~SQL
   )
 SQL
 
-if PARALLEL
-  # Check if messages_decoded table exists and build exclusion
-  table_exists = $db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_decoded'").any?
-  exclusion_rules = "#{MESSAGES_EXCLUSION}"
-  if table_exists
-    last_row, = $db.execute("SELECT COALESCE(MAX(id), 0) FROM messages_decoded").flatten
-    exclusion_rules << " AND m.ROWID > #{last_row}" if last_row
-  end
+exclusion_rules = "#{MESSAGES_EXCLUSION}"
+# Check if messages_decoded table exists and build exclusion
+table_exists = $db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='messages_decoded'").any?
+if table_exists
+  last_row, = $db.execute("SELECT COALESCE(MAX(id), 0) FROM messages_decoded").flatten
+  exclusion_rules << " AND m.ROWID > #{last_row}" if last_row
+end
 
+if PARALLEL
   # Get rows that need parallel processing
   payload_rows = $db.execute "SELECT ROWID as id, payload_data FROM messages_db.message m WHERE payload_data IS NOT NULL AND #{exclusion_rules}"
   Timer.lap "payload_data loaded"
