@@ -88,7 +88,7 @@ $db.execute <<-SQL
     EXISTS (SELECT 1 FROM json_each(c.emails) WHERE h.handle = value)
   );
 SQL
-$db.execute "CREATE INDEX idx_handle_contacts ON handle_contacts(handle)"
+$db.execute "CREATE UNIQUE INDEX idx_handle_contacts_unique ON handle_contacts(handle, contact_id)"
 Timer.lap "handle contacts table creation-"
 
 # Add missing handles for "me" contact (past phone numbers, etc)
