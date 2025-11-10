@@ -12,7 +12,7 @@ require_relative 'timer'
 PARALLEL = true
 
 CONTACTS_DB = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
-MESSAGES_DB = Dir[File.expand_path("~/Library/Messages/chat.db")][0]
+MESSAGES_DB = File.expand_path("~/Library/Messages/chat.db")
 CACHE_DB    = File.expand_path("~/.cache/imsg-grep/chat.db")
 FileUtils.mkdir_p File.dirname(CACHE_DB)
 FileUtils.touch(CACHE_DB)
