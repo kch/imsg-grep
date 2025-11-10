@@ -24,7 +24,7 @@ Timer.start
   raise "Database not readable: #{db}" unless File.readable?(db)
 end
 
-$db = SQLite3::Database.new(CACHE_DB, { encoding: "utf-8" })
+$db = SQLite3::Database.new(CACHE_DB)
 $db.execute("ATTACH DATABASE '#{CONTACTS_DB}' AS contacts_db; PRAGMA contacts_db.readonly = ON")
 $db.execute("ATTACH DATABASE '#{MESSAGES_DB}' AS messages_db; PRAGMA messages_db.readonly = ON")
 
