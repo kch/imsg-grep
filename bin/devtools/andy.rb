@@ -22,11 +22,14 @@ $db.execute <<~SQL
     c.display_name,
     COALESCE(
       NULLIF(c.display_name, ''),
-      (SELECT group_concat(COALESCE(ct.name, cp.handle), ', ')
-       FROM chat_participants cp
-       LEFT JOIN handle_contacts hc ON hc.handle = cp.handle
-       LEFT JOIN contacts ct ON ct.id = hc.contact_id
-       WHERE cp.chat_id = c.ROWID)
+      (SELECT group_concat(name, ', ')
+       FROM (
+         SELECT DISTINCT COALESCE(ct.name, cp.handle) as name
+         FROM chat_participants cp
+         LEFT JOIN handle_contacts hc ON hc.handle = cp.handle
+         LEFT JOIN contacts ct ON ct.id = hc.contact_id
+         WHERE cp.chat_id = c.ROWID
+       ))
     ) as name
   FROM messages_db.chat c
 SQL
