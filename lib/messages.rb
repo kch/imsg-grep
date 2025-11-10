@@ -42,9 +42,8 @@ Timer.lap "setup"
 # name    | "John Smith"
 # emails  | ["john@gmail.com", "john@work.com"]
 # numbers | ["+14155551212", "+14155551213"]
-$db.execute "DROP TABLE IF EXISTS contacts;"
 $db.execute <<-SQL
-  CREATE TABLE contacts AS
+  CREATE TEMP TABLE contacts AS
   WITH emails AS (
     SELECT ZOWNER, json_group_array(ZADDRESS) as emails
     FROM contacts_db.ZABCDEMAILADDRESS GROUP BY ZOWNER
@@ -69,9 +68,8 @@ Timer.lap "contacts table created"
 # maps message handles to contact IDs:
 # handle     | "+14155551212"
 # contact_id | 42
-$db.execute "DROP TABLE IF EXISTS handle_contacts;"
 $db.execute <<-SQL
-  CREATE TABLE handle_contacts AS
+  CREATE TEMP TABLE handle_contacts AS
   WITH all_handles AS (
     SELECT DISTINCT id as handle FROM messages_db.handle
     UNION
@@ -167,10 +165,7 @@ if PARALLEL
   Timer.lap "attributedBody unarchived (parallel) (#{text_rows.size} items)"
 
   # Create temp tables with results
-  $db.execute "DROP TABLE IF EXISTS temp_payloads"
   $db.execute "CREATE TEMP TABLE temp_payloads (id INTEGER PRIMARY KEY, payload TEXT)"
-
-  $db.execute "DROP TABLE IF EXISTS temp_texts"
   $db.execute "CREATE TEMP TABLE temp_texts (id INTEGER PRIMARY KEY, text_decoded TEXT)"
 
   $db.transaction do
