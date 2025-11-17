@@ -1,159 +1,358 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 # Search and filter iMessage database entries with regex patterns, date ranges, and participant filters
 
-require "slop"
 require "date"
 require "json"
+require "debug"
+require "sqlite3"
+require "rainbow"
 
-DATE_RX = /^\d{4}-\d{2}-\d{2}([ T]\d{2}:\d{2}(:\d{2})?)?(Z|\d2:?\d2)?/
+require "yaml"
+require "psych/y"
 
-PROG = File.basename($PROGRAM_NAME)
+require_relative "../../strop/lib/strop"
+require_relative "../lib/grep/date"
+require_relative "../lib/grep/strop_utils"
+require_relative "../lib/messages"
 
-$literal = false
+require_relative "../lib/print_query"
 
+include Strop::Exports
+
+@case = :smart
+@mode = :regexp
+@conditions = Hash.new{ |h,k| h[k] = [] }
+@utc = false
+
+
+################################################################################
+### parse helpers ##############################################################
+################################################################################
+
+def parse_date(str, utc = @utc)
+  DateArg.parse(str, utc)
+rescue DateArg::Error
+  raise OptionError, "Invalid date #{str}; Use YYYY-MM-DD, or relative dates: 1y4m2d; See --help for details"
+end
+
+def date_cmp(op, dt)
+  case [dt, @utc]
+  in Date, true  then "utc_date   #{op} '#{dt.strftime('%Y-%m-%d')}'"
+  in Date, false then "local_date #{op} '#{dt.strftime('%Y-%m-%d')}'"
+  in Time, _     then "unix_time  #{op} #{dt.to_i}"
+  end
+end
+
+def parse_p_int(str)
+  Integer(str).tap{ raise ArgumentError unless it > 0 }
+rescue ArgumentError
+  raise OptionError, "#{str} not a positive integer"
+end
+
+def parse_capture(str)
+  case str
+  when nil            then '\0'
+  when /\A\d(,\d)*\z/ then str.gsub(/(?=\d)/, ?\\).gsub(",", " ") # 1 or 1,2; "1,2" => "$1 $2"; 0 == $&
+  when /\$[&\d]/      then str.gsub(?$, ?\\)
+  else raise OptionError, "Invalid capture format: #{str}. Use '1,2' or '$1 $2'"
+  end
+end
+
+# LIKE is too much of a mess. ASCII-insensitive, only sensitive option is GLOB. Regexp everything at some perf cost.
+def mk_regexp(pattern)
+  case_ = @case
+  case_ = /\p{Upper}/ =~ pattern ? :sensitive : :ignore if case_ == :smart
+  pattern = Regexp.escape(pattern) if @mode == :literal
+  flags = [Regexp::IGNORECASE] if case_ == :ignore
+  Regexp.new(pattern, *flags)
+rescue RegexpError => e
+  raise OptionError, "Invalid regular expression (#{value}): #{e.message}"
+end
+
+def add_cond(key, value)
+  @conditions[key] << value
+end
+
+################################################################################
+### begin option parsing #######################################################
+################################################################################
 begin
+  HELP = DATA.read.gsub("PROG", File.basename($0))
+  optlist = Strop.parse_help HELP
+  optlist << Optdecl[:D, :debug]
+  optlist << Optdecl[:opts]
+  result = Strop.parse optlist
+  # result = Strop.parse! HELP
+  # puts optlist
+  # puts optlist.to_s(:case)
+  # puts result.to_s
 
-  def mk_regexp(s, _=nil, opts={})
-    s = Regexp::escape s if opts[:literal]
-    Regexp.new(s)
-  rescue RegexpError
-    raise Slop::Error, "Invalid regex pattern: #{s}"
-  end
+  capture_opts = %w[ capture ]
+  text_opts    = %w[ message-only one-line ]
+  json_opts    = %w[ json payload ]
+  result.exclusive capture_opts, text_opts, json_opts
+  result.exclusive "sent", "received"
+  result.standalone "reset"
 
-  def parse_date(s)
-    Time.parse(s).iso8601
-  rescue
-    raise Slop::Error, "Invalid date format for #{s}. Use YYYY-MM-DD"
-  end
-
-  opts = Slop.parse do |o|
-    o.banner = "Usage: #{PROG} [options] [PATTERN]"
-
-    o.separator "\nDate filtering:"
-    o.string "-d", "--since DATE",       "Match after DATE",  format: DATE_RX, &method(:parse_date)
-    o.string "-u", "--until DATE",       "Match before DATE", format: DATE_RX, &method(:parse_date)
-
-    o.separator "\nParticipant filtering:"
-    o.regexp "-t", "--to   CONTACT",     "Match recipients",      multiple: true#, &method(:mk_regexp)
-    o.regexp "-f", "--from CONTACT",     "Match sender",          multiple: true#, &method(:mk_regexp)
-    o.regexp "-w", "--with CONTACT",     "Match any participant", multiple: true#, &method(:mk_regexp)
-    o.regexp "-c", "--chat PATTERN",     "Match chat name",       multiple: true#, &method(:mk_regexp)
-
-    o.separator "\nMatch handling:"
-    # o.bool   "-S", "--no-smart-case",    "..."
-    # o.bool   "-I", "--no-ignore-case",   "..."
-    o.bool   "-l", "--literal",          "Literal string match, no regex" do $literal = true end
-    o.bool   "-x", "--regexp",           "Regexp match, turn off -l"      do $literal = false end
-    o.bool   "-a", "--all",              "Allow calling with no pattern or filters"
-    o.bool   "-m", "--max NUM",          "Only print top NUM messages"
-
-    o.separator "\nMessage type filtering:"
-    o.bool   "-s", "--sent",             "Only match sent"
-    o.bool   "-r", "--received",         "Only match received"
-    o.bool   "-L", "--links",            "Find links"
-    o.bool   "-Y", "--youtube",          "Find youtube links"
-
-    o.separator "\nOutput formatting:"
-    o.string "-o", "--capture [EXPR]",   "Print only $& or EXPR"
-    o.bool   "-M", "--message-only",     "Only print message text"
-    o.bool   "-O", "--one-line",         "[from -> to] message"
-    o.bool   "-j", "--json",             "JSON output"
-    o.bool   "-p", "--payload",          "Include payload in JSON"
-    o.bool   "-Z", "--utc",              "Parse and print dates as UTC"
-
-    o.separator "\nOther:"
-    o.bool   "-R", "--reset",            "Clear and rebuild cache"
+  for opt in result
+    case opt
+    in label: "since", value:    then add_cond :since, parse_date(value)
+    in label: "until", value:    then add_cond :until, parse_date(value)
+    in label: "to", value:       then add_cond :to, mk_regexp(value)
+    in label: "from", value:     then add_cond :from, mk_regexp(value)
+    in label: "with", value:     then add_cond :with, mk_regexp(value)
+    in label: "chat", value:     then add_cond :chat, mk_regexp(value)
+    in label: "smart-case"       then @case = :smart
+    in label: "ignore-case"      then @case = :ignore
+    in label: "no-ignore-case"   then @case = :sensitive
+    in label: "literal"          then @mode = :literal
+    in label: "regexp"           then @mode = :regexp
+    in label: "max", value:      then @limit = parse_p_int(value)
+    in label: "all"              then @allow_all = true
+    in label: "sent"             then add_cond :from_me, true
+    in label: "received"         then add_cond :from_me, false
+    in label: "links", value:nil then add_cond :links, true
+    in label: "links", value:    then add_cond :links, value
+    in label: "youtube"          then add_cond :links, "youtube"
+    in label: "soundcloud"       then add_cond :links, "soundcloud"
+    in label: "capture", value:  then @capture = parse_capture(value)
+    in label: "message-only"     then @msg_only = true
+    in label: "one-line"         then @one_line = true
+    in label: "json"             then @json = true
+    in label: "payload"          then @json = true, @payload = true
+    in label: "reverse"          then @reverse = true
+    in label: "utc"              then @utc = true
+    in label: "reset"            then reset_cache; exit
+    in label: "help"             then puts HELP; exit
+    in label: "debug"            then @debug = true
+    # in label: "opts"             then puts "Remaining options: " + ((?0..?z).to_a.grep(/\w/) - optlist.flat_map{ it.names.reject{it[1]} }).join(", ")
+    # in label: "opts"             then puts (?0..?z).to_a.grep(/\w/).map{ it + ": " + (optlist[it]&.label || "AVAILABLE") }
+    in arg:                      then add_cond :message, mk_regexp(arg)
+    in Sep
+    end
     # o.bool   "-D", "--debug ID",         "Print way too much abt msg with id"
     # -q, silent, 0 or 1 exit if match
-
-    o.on "-h", "--help", "Show this help" do
-      puts o
-      puts
-      puts <<~END
-        DATE must be in ISO8601 format. Time and TZ optional.
-        You can use gdate for calculations: -d `gdate -Im -d -7days`
-        Dates are consdered local unless -Z or TZ component present in string.
-
-        PATTERN is a regular expression (oniguruma).
-        Case-insensitive by default, unless upcase letters present.
-        Can force senitivity with '(?-i:pattern)'
-        Use -l to match literal string.
-
-        CONTACT works the same as pattern but matches a contact.
-        You can give part of a name, phone number, email. It'll look up
-        the full contact details in the address book and match against every
-        handle available for every matched contact.
-
-        --capture EXPR
-        When omitted, the entire match is presented.
-        When a number, that capture group is presented.
-        When a format string: "foo $1 bar $2", interpolates the captures.
-
-        -l,-x only affect subsequent patterns.
-
-        Examples:
-          #{PROG} pattern                   # Basic search
-          #{PROG} -f Alice pattern          # From Alice
-          #{PROG} -d 2024-01-01 pattern    # Since date
-          #{PROG} -o '1,2' '(\w+):(\d+)'   # Capture groups
-        END
-      exit
-    end
   end
 
-  rx_msg = opts.arguments.first
-  rx_msg &&= Regexp::escape rx_msg if opts[:literal]
-  rx_msg &&= mk_regexp rx_msg
+  d0, d1 = @conditions.values_at(:since, :until).map{it.uniq.sort}
+  $stderr.puts "Warning: multiple since dates given. Most recent wins"  if d0.size > 1
+  $stderr.puts "Warning: multiple until dates given. Least recent wins" if d1.size > 1
+  d0 = d0.last
+  d1 = d1.first
+  # Time+Date would fail compare below, so we lose precision to make it work
+  # these values are not used other than for this check
+  d0, d1 = [d0, d1].compact.map(&:to_date) if [d0, d1].map(&:class).uniq.size > 1
+  raise OptionError, "Since date must be before until date" if d0 && d1 && d0 > d1
 
-  raise Slop::Error, "Pattern required" unless opts[:all] || rx_msg
+  links = @conditions[:links]
+  if links.include?(true) && links.uniq.size > 1
+    links.delete(true)
+    overrides = result.select{ |it| it.label == "links" && !it.value.nil? }.map{ "#{it._name} #{it.value}" }
+    $stderr.puts "Warning: ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
+  end
 
-  require 'yaml'
-  require 'psych/y'
-  y opts
+  if @capture
+    *pats, @capture_rx = @conditions[:message]
+    @link_capture = !@capture_rx && @capture == '\0' && @conditions[:links].any? # no msg pats, argless -o, -L or friends
+    raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_rx || @link_capture
+    $stderr.puts "Warning: #{result[:capture]._name} used with multiple message patterns. Will use last given" unless pats.empty?
+  end
 
-rescue Slop::Error, RegexpError => e
-  puts "Error: #{e.message}"
-  puts "Use --help for usage information"
+
+  def match(x, r) = "#{x} REGEXP '#{SQLite3::Database.quote r.to_s}'"
+  def match_searchable(x, r) = "EXISTS (SELECT 1 FROM json_each(#{x}) WHERE #{match(:value, r)})"
+
+  sql_cond = @conditions.map do |key, conds|
+    next if conds.empty?
+    conds.map do |value|
+      case [key, value]
+      in :since, _             then date_cmp(:>=, value)
+      in :until, _             then date_cmp(:<=, value)
+      in :from_me, cond        then "is_from_me IS #{cond}"
+      in :links, true          then "link_url IS NOT NULL"
+      in :links, "youtube"     then match(:link_url, %r[\Ahttps?://((www\.)?youtube\.com|youtu\.be)/]i)
+      in :links, "soundcloud"  then match(:link_url, %r[\Ahttps?://(on\.)?soundcloud\.com/]i)
+      in :links, String        then match(:link_url, mk_regexp(value))
+      in :from,    Regexp      then match_searchable(:sender_searchable, value)
+      in :to,      Regexp      then match_searchable(:recipients_searchable, value)
+      in :with,    Regexp      then match_searchable(:members_searchable, value)
+      in :chat,    Regexp      then match(:chat_name, value)
+      in :message, Regexp      then match(:text, value)
+      end
+    end.map{ "(#{it})" }.join(" OR \n")
+  end.compact.map{ "(#{it})" }.join(" AND \n")
+
+  limit = "LIMIT #{@limit}" if @limit
+  time_col = @utc ? :utc_time : :local_time
+  sql = <<~SQL
+    SELECT
+      -- message_id,
+      #{'payload_json,' if @payload}
+      guid,
+      has_attachments,
+      sender_name as "from",
+      recipient_names as "to",
+      is_group_chat,
+      chat_name,
+      text,
+      link_url,
+      #{time_col} as time
+    FROM message_view
+    #{'WHERE ' + sql_cond unless sql_cond.empty?}
+    ORDER BY unix_time #{@reverse ? 'ASC' : 'DESC'}
+    #{limit}
+  SQL
+  IO.popen(['bat', '-l', 'sql'], 'w') { it << sql } if @debug
+
+  found = $db.select_hashes(sql).to_a
+  found.each do |msg|
+    msg["from"] ||= "me"
+    msg["to"]     = JSON.parse(msg["to"] || '["me"]')
+    msg["text"]   = msg["text"].to_s.gsub(/\R/, " ") if @one_line
+  end
+
+  if @json
+    puts JSON.pretty_generate found.to_a
+    exit
+  end
+
+  for msg in found
+    guid = msg["guid"]
+    from = msg["from"]
+    to   = msg["to"]
+    chat = msg["chat_name"]
+    text = msg["text"]
+    link = msg["link_url"]
+    time = msg["time"]
+    group_chat = msg["is_group_chat"] == 1
+
+    if @link_capture
+      text = link
+    elsif @capture
+      match = text.match @capture_rx
+      text = @capture.gsub(/\\(\d)/){ match[$1.to_i] }
+    end
+
+    out = text.to_s
+    out = link if out.empty? && link
+    out = Rainbow(out).bright.red if link
+    out = Rainbow("[attachments]").cyan if out =~ /\A\uFFFC*\z/ && msg["has_attachments"]
+    if @one_line
+      out = "#{Rainbow(time).bright.blue} [#{Rainbow(from).yellow} -> #{Rainbow(chat.to_s.empty? ? to*', ' : chat).yellow.bright}]: #{Rainbow(out).bright}" unless @msg_only
+    elsif @msg_only
+      out = text
+    else
+      out1 = out
+      out = {
+        GUID: (guid if @debug),
+        From: from,
+        To: (to*', ' unless group_chat),
+        With: (to*', ' if group_chat),
+        Chat: chat
+        }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{Rainbow(k.to_s).yellow}: #{Rainbow(v).bright.yellow}"}.join("\n")
+      out << "\n" << out1 << "\n\n"
+    end
+
+    puts out
+  end
+
+rescue OptionError => e
+  $stderr.puts e.message
+  $stderr.puts "See --help for usage information"
   exit 1
 end
 
+# MISSING:
+# -a
+#     -R, --reset            Clear and rebuild cache
 
-exit
-def validate_capture_format(format)
-  return true if format.match?(/^\d+(?:,\d+)*$/) # 1 or 1,2
-  return true if format.match?(/\$\d+/)          # prefix $1 suffix
-  raise Slop::Error, "Invalid capture format. Use '1,2' or '$1 $2'"
-end
-
-
-  # Mutually exclusive flags
-  raise Slop::Error, "Can't use --sent and --received together" if opts[:sent] && opts[:received]
-  raise Slop::Error, "Can't mix JSON with message/line formats" if opts[:json] && (opts[:message_only] || opts[:one_line])
-  raise Slop::Error, "Can't use --message-only and --one-line together" if opts[:message_only] && opts[:one_line]
-  raise Slop::Error, "--payload requires --json" if opts[:payload] && !opts[:json]
-  raise Slop::Error, "--capture requires regex pattern" if opts[:capture] && opts[:literal]
-
-  # Participant filters
-  raise Slop::Error, "Can't use --chat with --to/--from/--with" if opts[:chat] && (opts[:to] || opts[:from] || opts[:with])
-
-  # Optional format validations
-  validate_capture_format(opts[:capture]) if opts[:capture]
-
-  # Date handling
-  since_date = parse_date(opts[:since])
-  until_date = parse_date(opts[:until])
-  raise Slop::Error, "Since date must be before until date" if since_date && until_date && since_date > until_date
+# Output formatting:
+#     -m, --message-only     Only print message text
+#     -1, --one-line         [from -> to] message, newlines removed
+#     -j, --json             JSON output
+#     -p, --payload          Include payload in JSON
+#     -V, --reverse          Reverse order of output (oldest first)
 
 
+__END__
+Usage: PROG [options ...] [PATTERN ...]
 
-# This handles:
-# - All option parsing
-# - Required vs optional args
-# - Multiple occurrences
-# - All core validations
-# - Help text with examples
-# - Clean error messages
-# - Date parsing
-# - Regex validation
-# - Logical grouping
-# - Flag conflicts
+Date filtering:
+    -d, --since DATE       Match after DATE
+    -u, --until DATE       Match before DATE
+    -Z, --utc              Parse and print dates as UTC
+
+Participant filtering:
+    -t, --to CONTACT       Match recipients
+    -f, --from CONTACT     Match sender
+    -w, --with CONTACT     Match sender or recipients
+    -c, --chat PATTERN     Match chat name
+
+Match handling:
+    -n, --max=NUM          Only print top NUM messages
+    -C, --smart-case       Case-sensitive when pattern has uppercase letters (default)
+                           Turn off with -i or -I
+    -i, --ignore-case      Case-insensitive matches
+    -I, --no-ignore-case   Case-sensitive matches
+    -l, --literal          Literal string match, no regex
+    -x, --regexp           Regexp match (default, turn off with -l)
+    -a, --all              Allow calling with no conditions (will print all messages)
+
+Message type filtering:
+    -s, --sent             Only match sent
+    -r, --received         Only match received
+    -L, --links[=URL]      Find links
+    -Y, --youtube          Find youtube links
+    -S, --soundcloud       Find soundcloud links
+
+Output formatting:
+    -o, --capture [EXPR]   Print only $& or EXPR
+    -m, --message-only     Only print message text
+    -1, --one-line         [from -> to] message, newlines removed
+    -j, --json             JSON output
+    -p, --payload          Include payload in JSON
+    -V, --reverse          Reverse order of output (oldest first)
+
+Other:
+    -R, --reset            Clear and rebuild cache
+    -h, --help             Show this help
+
+
+-- TODO: split marker. -h shows above, --help adds below.
+
+DATE must be in ISO8601 format. Time and TZ optional.
+You can use gdate for calculations: -d `gdate -Im -d -7days`
+Dates are consdered local unless -Z or TZ component present in string.
+
+PATTERN is a regular expression (onigmo).
+Case-insensitive by default, unless upcase letters present.
+Can force senitivity with '(?-i:pattern)'
+Use -l to match literal string.
+
+CONTACT works the same as pattern but matches a contact.
+You can give part of a name, phone number, email. It'll look up
+the full contact details in the address book and match against every
+handle available for every matched contact.
+
+--capture EXPR
+When omitted, the entire match is presented.
+When a number, that capture group is presented.
+When a format string: "foo $1 bar $2", interpolates the captures.
+-o same as -o"$&"
+-o1 same as -o"$1"
+--o "$3, $2"
+Only works if single pattern given
+
+-l,-x only affect subsequent patterns.
+
+can use -x -to a.aa -l -to bbbb
+
+-f a -f b is OR, ie, same opts combine as or. diff opts genereally combine as AND
+
+
+Examples:
+  PROG pattern                   # Basic search
+  PROG -f Alice pattern          # From Alice
+  PROG -d 2024-01-01 pattern    # Since date
+  PROG -o '1,2' '(\w+):(\d+)'   # Capture groups
