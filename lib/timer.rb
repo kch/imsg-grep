@@ -14,7 +14,7 @@ module Timer
     lap_time = (now - @last_lap) * 1000
     @total_time += lap_time
     line = "%5.0fms / %5.0fms: #{msg}" % [lap_time, @total_time]
-    puts line
+    $stderr.puts line
     @laps << { msg: msg, time: lap_time, line: line, line_num: @laps.size }
     @last_lap = now
   end
@@ -29,8 +29,8 @@ module Timer
       bar_length = (lap[:time] / max_lap_time * 20).round
       bar = "█" * bar_length + "░" * (20 - bar_length)
       padding = " " * [0, start_col - lap[:line].length].max
-      print "\e[#{@laps.size - lap[:line_num]}A\r#{lap[:line]}#{padding}#{bar} #{pct}%\e[#{@laps.size - lap[:line_num]}B\r"
+      $stderr.print "\e[#{@laps.size - lap[:line_num]}A\r#{lap[:line]}#{padding}#{bar} #{pct}%\e[#{@laps.size - lap[:line_num]}B\r"
     end
-    puts
+    $stderr.puts
   end
 end
