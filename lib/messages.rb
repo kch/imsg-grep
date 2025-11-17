@@ -3,13 +3,9 @@
 
 require 'fileutils'
 require 'sqlite3'
-require 'parallel'
-require 'etc'
 require_relative 'keyed_archive'
 require_relative 'attr_str'
 require_relative 'timer'
-
-PARALLEL = true
 
 CONTACTS_DB = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
 MESSAGES_DB = File.expand_path("~/Library/Messages/chat.db")
@@ -161,48 +157,6 @@ end # if !synced_contacts && !synced_messages
 ### messages cache ahaed
 if !synced_messages
 
-  if PARALLEL
-    # Get rows that need parallel processing
-    payload_rows = $db.execute "SELECT ROWID as id, payload_data FROM messages_db.message m WHERE payload_data IS NOT NULL AND #{exclusion_rules}"
-    Timer.lap "payload_data loaded"
-
-    text_rows = $db.execute "SELECT ROWID as id, attributedBody FROM messages_db.message m WHERE attributedBody IS NOT NULL AND #{exclusion_rules}"
-    Timer.lap "attributedBody loaded"
-
-    SQLite3::ForkSafety.suppress_warnings!
-
-    # Process payload rows in parallel
-    payload_results = Parallel.map(payload_rows, in_processes: Etc.nprocessors - 1) do |id, data|
-      [id, NSKeyedArchive.json(data)]
-    end
-    Timer.lap "payload_data unarchived (parallel) (#{payload_rows.size} items)"
-
-    # Process text rows in parallel
-    text_results = Parallel.map(text_rows, in_threads: Etc.nprocessors - 1) do |id, data|
-      [id, AttributedStringExtractor.extract(data)]
-    end
-    Timer.lap "attributedBody unarchived (parallel) (#{text_rows.size} items)"
-
-    # Create temp tables with results
-    $db.execute "CREATE TEMP TABLE temp_payloads (id INTEGER PRIMARY KEY, payload TEXT)"
-    $db.execute "CREATE TEMP TABLE temp_texts (id INTEGER PRIMARY KEY, text_decoded TEXT)"
-
-    $db.transaction do
-      payload_results.each_slice(500) do |batch|
-        placeholders = (["(?,?)"] * batch.size).join(",")
-        params = batch.flatten
-        $db.execute("INSERT INTO temp_payloads (id, payload) VALUES #{placeholders}", params)
-      end
-
-      text_results.each_slice(500) do |batch|
-        placeholders = (["(?,?)"] * batch.size).join(",")
-        params = batch.flatten
-        $db.execute("INSERT INTO temp_texts (id, text_decoded) VALUES #{placeholders}", params)
-      end
-    end
-    Timer.lap "attributedBody, payload_data in temp tables"
-  end
-
   MESSAGES_DECODED_QUERY = <<~SQL
     WITH chat_participants AS (
       SELECT
@@ -219,8 +173,9 @@ if !synced_messages
           SELECT DISTINCT value FROM (
             SELECT value FROM json_each(p.participant_handles)
             UNION ALL
-            SELECT m.destination_caller_id WHERE m.destination_caller_id IS NOT NULL
-            UNION ALL
+            -- guess we still need to decide on if include this or not, prob not
+            -- SELECT m.destination_caller_id WHERE m.destination_caller_id IS NOT NULL
+            -- UNION ALL
             SELECT h.id WHERE h.id IS NOT NULL
           )
         )) as participant_handles,
@@ -238,24 +193,15 @@ if !synced_messages
       mp.sender_handle,
       mp.participant_handles,
       (SELECT json_group_array(json(cd.contact))
-      FROM contact_details cd, json_each(mp.participant_handles) ph
-      WHERE cd.handle = ph.value) as participant_details,
+        FROM contact_details cd, json_each(mp.participant_handles) ph
+        WHERE cd.handle = ph.value) as participant_details,
       (SELECT cd.contact
-      FROM contact_details cd
-      WHERE cd.handle = mp.sender_handle) as sender_details,
-      #{if PARALLEL
-          "tt.text_decoded,
-          tp.payload"
-        else
-          "IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
-          IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload"
-        end}
+        FROM contact_details cd
+        WHERE cd.handle = mp.sender_handle) as sender_details,
+      IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
+      IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload
     FROM messages_db.message m
     LEFT JOIN message_participants mp ON m.ROWID = mp.message_id
-    #{if PARALLEL
-        "LEFT JOIN temp_texts    tt ON m.ROWID = tt.id
-        LEFT JOIN temp_payloads tp ON m.ROWID = tp.id"
-      end}
     WHERE #{exclusion_rules}
   SQL
 
