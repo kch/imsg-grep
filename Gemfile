@@ -1,9 +1,11 @@
 source "https://rubygems.org"
 
-gem "sqlite3"       # lib/messages.rb, bin/devtools/extract_bplists.rb
-gem "parallel"      # lib/messages.rb
+gem "sqlite3"
+gem "base64" # builtin
 
-gem "slop"          # bin/imsg-grep
-
-gem "rainbow"       # bin/devtools/andy.rb
-gem "plist"         # bin/devtools/extract_bplists.rb
+group :development do
+  gem "debug"    # builtin
+  gem "minitest" # builtin
+  gem "rainbow"
+  gem "plist"
+end
