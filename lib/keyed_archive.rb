@@ -17,18 +17,20 @@ class NSKeyedArchive
   def self.json(...) = new(...).json
 
   def initialize(data)
-    raise "no bplist" unless data.start_with?("bplist")
+    return if data[0, 4] == "\x08\x08\x11\x00" # DigitalTouchBalloonProvider row; another format, ignore
+    raise "no bplist: #{data}" unless data.start_with?("bplist")
     @data = BPList.parse data
   end
 
   def unarchive
+    return unless @data # initialize failed
     top  = @data["$top"] or raise "no top"
     root = top["root"] or raise "no root"
     objs = @data["$objects"] or raise "no objects"
     decode_objects dereference_uids(root, objs)
   end
 
-  def json = unarchive.to_json
+  def json = unarchive&.to_json
 
   private
 
