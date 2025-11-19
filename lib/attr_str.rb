@@ -2,12 +2,13 @@
 # Extract NSString value from unkeyed-archived (typedstream) NSAttributedString
 
 class AttributedStringExtractor
-  def self.extract(...) = new(...).extract
+  def self.extract(data) = (new(data).extract if data)
 
   TAG_INTEGER_2 = -127  # Indicates 2-byte integer follows
   TAG_INTEGER_4 = -126  # Indicates 4-byte integer follows
 
   def initialize(data)
+    return if data.nil?
     # Find NSString position first and fail fast if not found
     @nsstring_pos = data.index("NSString") or raise "NSString not found in data"
     @data = data.b
@@ -28,6 +29,8 @@ class AttributedStringExtractor
   end
 
   def extract
+    return if @data.nil?
+
     # Jump to after NSString and look for '+' string marker
     marker_pos = @data.index(?+, @nsstring_pos + 8)
     return unless marker_pos
