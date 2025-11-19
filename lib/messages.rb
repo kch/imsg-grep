@@ -21,8 +21,8 @@ Timer.start
 end
 
 $db = SQLite3::Database.new(CACHE_DB)
-$db.execute("ATTACH DATABASE '#{CONTACTS_DB}' AS contacts_db; PRAGMA contacts_db.readonly = ON")
-$db.execute("ATTACH DATABASE '#{MESSAGES_DB}' AS messages_db; PRAGMA messages_db.readonly = ON")
+$db.execute("ATTACH DATABASE '#{CONTACTS_DB}' AS contacts_db")
+$db.execute("ATTACH DATABASE '#{MESSAGES_DB}' AS messages_db")
 
 REGEX_CACHE = Hash.new { |h,k| h[k] = Regexp.new(k, Regexp::IGNORECASE) }
 $db.create_function("regexp", 2)               { |f, rx, text| f.result = REGEX_CACHE[rx].match?(text) ? 1 : 0 }
