@@ -25,7 +25,7 @@ module Print
     # max lengths for each col, but capping the header rows at 5 so big headers with short content don't take up space
     lens = [hrow.map{it[0,5]}].concat(rows).transpose.map{|col|col.map{it.to_s.size}.max||0}
     # is each column number? used for aligning them right
-    nums = rows.transpose.map{|col| col.all?{Numeric===it} }
+    nums = rows.transpose.map{|col| col.compact.all?{Numeric===it} }
     # available term width for all cols excluding separators
     colsw = @term_width - hrow.size + 1
     # max width per col; start with an even col width then redistribute next
