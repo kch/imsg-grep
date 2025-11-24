@@ -123,6 +123,7 @@ begin
     in label: "json"             then @json = true
     in label: "payload"          then @json = true, @payload = true
     in label: "reverse"          then @reverse = true
+    in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "utc"              then @utc = true
     in label: "reset"            then reset_cache; exit
     in label: "help"             then puts HELP; exit
@@ -312,6 +313,8 @@ Message type filtering:
     -S, --soundcloud       Find soundcloud links
 
 Output formatting:
+    --[no-]color           Enable/disable color output
+                           (default: yes if tty)
     -o, --capture [EXPR]   Print only $& or EXPR
     -m, --message-only     Only print message text
     -1, --one-line         [from -> to] message, newlines removed
