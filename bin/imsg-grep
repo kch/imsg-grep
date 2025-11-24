@@ -137,6 +137,10 @@ begin
     # -q, silent, 0 or 1 exit if match
   end
 
+################################################################################
+### checking conflicting options ###############################################
+################################################################################
+
   d0, d1 = @conditions.values_at(:since, :until).map{it.uniq.sort}
   $stderr.puts "Warning: multiple since dates given. Most recent wins"  if d0.size > 1
   $stderr.puts "Warning: multiple until dates given. Least recent wins" if d1.size > 1
@@ -164,6 +168,10 @@ begin
   if @conditions.values.all?(&:empty?) && !@allow_all
     raise OptionError, "No filter conditions given. Use --all to allow, or see --help"
   end
+
+################################################################################
+### build sql query ############################################################
+################################################################################
 
   def match(x, r) = "#{x} REGEXP '#{SQLite3::Database.quote r.to_s}'"
   def match_searchable(x, r) = "EXISTS (SELECT 1 FROM json_each(#{x}) WHERE #{match(:value, r)})"
@@ -209,6 +217,10 @@ begin
     #{limit}
   SQL
   IO.popen(['bat', '-l', 'sql'], 'w') { it << sql } if @debug
+
+################################################################################
+### Massage results ############################################################
+################################################################################
 
   found = $db.select_hashes(sql).to_a
   found.each do |msg|
