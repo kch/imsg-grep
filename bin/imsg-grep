@@ -213,10 +213,11 @@ begin
     msg["from"] ||= "me"
     msg["to"]     = JSON.parse(msg["to"] || '["me"]')
     msg["text"]   = msg["text"].to_s.gsub(/\R/, " ") if @one_line
+    msg["payload"] = JSON.parse(msg.delete("payload_json") || "null")
   end
 
   if @json
-    puts JSON.pretty_generate found.to_a
+    puts JSON.pretty_generate found
     exit
   end
 
