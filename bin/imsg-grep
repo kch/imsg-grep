@@ -91,7 +91,8 @@ begin
   capture_opts = %w[ capture ]
   text_opts    = %w[ message-only one-line ]
   json_opts    = %w[ json payload ]
-  result.exclusive capture_opts, text_opts, json_opts
+  result.exclusive json_opts, text_opts
+  result.exclusive json_opts, capture_opts
   result.exclusive "sent", "received"
   result.standalone "reset"
 
