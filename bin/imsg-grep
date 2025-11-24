@@ -224,10 +224,12 @@ begin
 
   found = $db.select_hashes(sql).to_a
   found.each do |msg|
-    msg["from"] ||= "me"
-    msg["to"]     = JSON.parse(msg["to"] || '["me"]')
-    msg["text"]   = msg["text"].to_s.gsub(/\R/, " ") if @one_line
-    msg["payload"] = JSON.parse(msg.delete("payload_json") || "null")
+    msg.transform_keys!(&:to_sym)
+    msg[:from]        ||= "me"
+    msg[:to]            = JSON.parse(msg[:to] || '["me"]')
+    msg[:payload]       = JSON.parse(msg.delete(:payload_json) || "null")
+    msg[:is_group_chat] = msg[:is_group_chat] == 1
+
   end
 
   if @json
@@ -235,41 +237,37 @@ begin
     exit
   end
 
+  def R(...) = Rainbow(...)
+
   for msg in found
-    guid = msg["guid"]
-    from = msg["from"]
-    to   = msg["to"]
-    chat = msg["chat_name"]
-    text = msg["text"]
-    link = msg["link_url"]
-    time = msg["time"]
-    group_chat = msg["is_group_chat"] == 1
+    msg => guid:, from:, to:, chat_name:, text:, link_url:, time:, is_group_chat:, has_attachments:
 
     if @link_capture
-      text = link
+      text = link_url
     elsif @capture
       match = text.match @capture_rx
       text = @capture.gsub(/\\(\d)/){ match[$1.to_i] }
     end
 
-    out = text.to_s
-    out = link if out.empty? && link
-    out = Rainbow(out).bright.red if link
-    out = Rainbow("[attachments]").cyan if out =~ /\A\uFFFC*\z/ && msg["has_attachments"]
-    if @one_line
-      out = "#{Rainbow(time).bright.blue} [#{Rainbow(from).yellow} -> #{Rainbow(chat.to_s.empty? ? to*', ' : chat).yellow.bright}]: #{Rainbow(out).bright}" unless @msg_only
+    text = text.to_s
+    text = link_url if text.empty? && link_url
+    highlight = [(Regexp.escape(link_url) if link_url), @conditions[:message]].compact
+    text = text.gsub(/#{highlight.join(?|)}/) { R($&).send(link_url == $& ? :red : :magenta).bright } if highlight.any?
+    text = text.gsub(/\R/, " ") if @one_line
+    text = R("[attachments]").cyan if text =~ /\A\uFFFC*\z/ && has_attachments
+    if @one_line && !@msg_only
+      out = "#{R(time).bright.blue} [#{R(from).yellow} -> #{R(chat_name.to_s.empty? ? to*', ' : chat_name).yellow.bright}]: #{R(text)}" unless @msg_only
     elsif @msg_only
       out = text
     else
-      out1 = out
       out = {
         GUID: (guid if @debug),
         From: from,
-        To: (to*', ' unless group_chat),
-        With: (to*', ' if group_chat),
-        Chat: chat
-        }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{Rainbow(k.to_s).yellow}: #{Rainbow(v).bright.yellow}"}.join("\n")
-      out << "\n" << out1 << "\n\n"
+        To: (to*', ' unless is_group_chat),
+        With: (to*', ' if is_group_chat),
+        Chat: chat_name
+        }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{R(k.to_s).yellow}: #{R(v).bright.yellow}"}.join("\n")
+      out << "\n" << text << "\n\n"
     end
 
     puts out
