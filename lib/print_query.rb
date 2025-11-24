@@ -10,11 +10,11 @@ module Print
   def self.sep(s) = "\e[30m#{s}\e[39m"
   def self.clr = "\e[0m"
 
-  def self.query(q, db=$db)
-    table db.execute2 q
+  def self.query(q, title: nil, db: $db)
+    table db.execute2(q), title:
   end
 
-  def self.table(table)
+  def self.table(table, title: nil)
     bg1 = "\e[48;5;4m"
     bga = ["\e[48;5;235m", "\e[48;5;238m"]
     bg = ->{ bg1 ? (bg1.tap{bg1=nil}) : bga.rotate!.first }
@@ -51,6 +51,12 @@ module Print
       trunc_headers.rotate!                      # move on to next index
     end
 
+    total_width = lens.sum + hrow.size - 1 # full width table will take
+
+    row_count = "(#{rows.size} row#{?s if rows.size != 1})"
+    title = [title, row_count].join(" ")
+    puts "\e[48;5;18m" + title.ljust(total_width) + "\e[49m"
+
     lines = table.map do |row|
       line = row.zip(lens, nums).map do |val, len, num|
         just = ->s{ s.send(num ? :rjust : :ljust, len) }
@@ -65,6 +71,7 @@ module Print
       bg[] + line*sep(?│) + clr
     end
     puts lines
+    puts "\e[48;5;18m" + row_count.ljust(total_width) + "\e[49m"
     puts
   end
 
