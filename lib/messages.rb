@@ -1,280 +1,421 @@
 #!/usr/bin/env ruby
-# Core iMessage database processing - builds cached views with decoded messages, contacts, and attachments
+# frozen_string_literal: true
+# Core iMessage database processing - builds views with decoded messages, expanded contacts, a cache
 
 require 'fileutils'
 require 'sqlite3'
 require_relative 'keyed_archive'
 require_relative 'attr_str'
-require_relative 'timer'
+require_relative 'print_query'
 
-CONTACTS_DB = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
-MESSAGES_DB = File.expand_path("~/Library/Messages/chat.db")
-CACHE_DB    = File.expand_path("~/.cache/imsg-grep/chat.db")
+################################################################################
+### DB Setup ###################################################################
+################################################################################
+
+addy_db  = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
+imsg_db  = File.expand_path("~/Library/Messages/chat.db")
+CACHE_DB = File.expand_path("~/.cache/imsg-grep/cache.db")
 FileUtils.mkdir_p File.dirname(CACHE_DB)
 FileUtils.touch(CACHE_DB)
 
-Timer.start
-
-[CONTACTS_DB, MESSAGES_DB, CACHE_DB].each do |db|
+[addy_db, imsg_db, CACHE_DB].each do |db|
   raise "Database not found: #{db}" unless File.exist?(db)
   raise "Database not readable: #{db}" unless File.readable?(db)
 end
 
-$db = SQLite3::Database.new(CACHE_DB)
-$db.execute("ATTACH DATABASE '#{CONTACTS_DB}' AS contacts_db")
-$db.execute("ATTACH DATABASE '#{MESSAGES_DB}' AS messages_db")
+$db = SQLite3::Database.new(":memory:")
+$db.execute "ATTACH DATABASE '#{addy_db}' AS _addy"
+$db.execute "ATTACH DATABASE '#{imsg_db}' AS _imsg"
+$db.execute "ATTACH DATABASE '#{CACHE_DB}' AS _cache"
 
-REGEX_CACHE = Hash.new { |h,k| h[k] = Regexp.new(k, Regexp::IGNORECASE) }
-$db.create_function("regexp", 2)               { |f, rx, text| f.result = REGEX_CACHE[rx].match?(text) ? 1 : 0 }
-$db.create_function("plusdigits", 1)           { |f, text| f.result = text.delete("^0-9+") }
-$db.create_function("unarchive_keyed", 1)      { |f, data| f.result = NSKeyedArchive.unarchive(data).to_json }
-$db.create_function("unarchive_attributed", 1) { |f, data| f.result = AttributedStringExtractor.extract(data) }
+def reset_cache = FileUtils.rm_f(CACHE_DB)
+
+def $db.select_hashes(sql) = prepare(sql).execute.enum_for(:each_hash)
+def $db.ƒ(f, &) = define_function_with_flags(f.to_s, SQLite3::Constants::TextRep::UTF8 | SQLite3::Constants::TextRep::DETERMINISTIC, &)
+REGEX_CACHE = Hash.new { |h,src| h[src] = Regexp.new(src) }
+$db.ƒ(:regexp)           { |rx, text| REGEX_CACHE[rx].match?(text) ? 1 : 0 }
+$db.ƒ(:unarchive_keyed)  { |data| NSKeyedArchive.unarchive(data).to_json if data }
+$db.ƒ(:unarchive_string) { |data| AttributedStringExtractor.extract(data) if data }
 
 
-### Sync state stuff
+################################################################################
+### Contacts setup #############################################################
+################################################################################
 
-$db.execute "CREATE TABLE IF NOT EXISTS sync_state (key TEXT PRIMARY KEY, value)"
-sync_state = $db.execute("SELECT key, value FROM sync_state").to_h
-new_state  = $db.prepare(<<~SQL).execute.next_hash
+# Contacts table with:
+# - contact_id (in address book table)
+# - handle_id (in chat.db)
+# - handle (email or phone number)
+# - is_me
+# one row per handle. only handles that exist in chat.db
+# can map a contact to handle once i match the contact
+$db.ƒ(:normalize_phone) { |text| text =~ /[^\p{Punct}\p{Space}\d+]/ ? text : text.delete("^0-9+") } # remove punctuation from normal phones but keep weird phones intact
+$db.execute <<~SQL
+  CREATE TEMP TABLE contacts AS
+  WITH handles AS (
+    SELECT
+      ZOWNER   as contact_id,
+      ZADDRESS as handle
+    FROM _addy.ZABCDEMAILADDRESS
+    UNION ALL
+    SELECT
+      ZOWNER as contact_id,
+      normalize_phone(ZFULLNUMBER) as handle
+    FROM _addy.ZABCDPHONENUMBER
+  )
+  SELECT DISTINCT
+    r.Z_PK   as contact_id,
+    ch.ROWID as handle_id,
+    h.handle as handle,
+    (r.ZCONTAINERWHERECONTACTISME IS NOT NULL) as is_me
+  FROM _addy.ZABCDRECORD r
+  JOIN handles h ON h.contact_id = r.Z_PK
+  JOIN _imsg.handle ch ON ch.id = h.handle -- only take handles that exist in _imsg
+  SQL
+
+# # older messages from me may have discontinued numbers not in address book
+# # re-add those as handles for my contact
+# # i'm not sure this is gonna be needed anymore, but leaving here for now
+# # these don't get a handle_id (if i've messaged myself, they get from previous query)
+# $db.execute "CREATE UNIQUE INDEX idx_contacts_unique ON contacts (handle, handle_id, contact_id, is_me)"
+# $db.execute <<~SQL
+#   INSERT OR IGNORE INTO contacts (contact_id, handle, is_me)
+#   SELECT DISTINCT
+#     (SELECT contact_id FROM contacts WHERE is_me = 1 LIMIT 1)
+#                           as contact_id,
+#     destination_caller_id as handle,
+#     1                     as is_me
+#   FROM _imsg.message
+#   WHERE is_from_me = 1
+#     AND destination_caller_id IS NOT NULL
+#     AND destination_caller_id NOT IN (SELECT handle FROM contacts)
+#     AND EXISTS (SELECT 1 FROM contacts WHERE is_me = 1);
+#   SQL
+
+$db.ƒ(:computed_name) do |first, maiden, middle, last, nick, org|
+  names = [first, maiden, middle, last].compact.reject(&:empty?)
+  names << "(#{nick})" if nick && !nick.empty?
+  names.empty? ? org.to_s : names.join(" ")
+end
+
+$db.execute <<~SQL
+  CREATE TEMP TABLE handle_groups AS
+  WITH computed AS (
+    SELECT
+      c.handle_id,
+      r.Z_PK as contact_id,
+      (r.zcontainerwherecontactisme IS NOT NULL) as is_me,
+      computed_name(r.zfirstname, r.zmaidenname, r.zmiddlename, r.zlastname, r.znickname, r.zorganization) as name
+    FROM _addy.zabcdrecord r
+    JOIN contacts c ON c.contact_id = r.Z_PK                  -- get all contact->handle mappings with computed names
+  ),
+  searchables AS (
+    SELECT handle_id, c2.handle as term                       -- flatten: handle_id -> each handle string
+    FROM contacts c2
+    WHERE c2.handle_id IN (SELECT handle_id FROM computed)    -- only for handles that have contacts
+    UNION ALL
+    SELECT handle_id, name as term                            -- flatten: handle_id -> each computed name
+    FROM computed
+  )
   SELECT
-    (SELECT MAX(ZTIMESTAMP) FROM contacts_db.ATRANSACTION) as contacts_timestamp,
-    (SELECT seq FROM messages_db.sqlite_sequence WHERE name = 'message') as messages_sequence
+    c.handle_id,
+    json_group_array(c.contact_id) as contact_ids,            -- collect all contact_ids as JSON array
+    MAX(c.is_me) as is_me,                                    -- true if any contact entry is me
+    (SELECT json_group_array(DISTINCT term)                   -- collect all searchable terms per handle
+     FROM searchables s
+     WHERE s.handle_id = c.handle_id) as searchable,          -- result: ["handle1","handle2","Name"]
+    MIN(c.name) as name                                       -- pick first computed name when duplicates
+  FROM computed c
+  GROUP BY c.handle_id                                        -- collapse duplicate contact entries per handle
+  UNION
+  -- add handles without any contact entry
+  SELECT
+    h.ROWID as handle_id,
+    null,
+    null,
+    json_array(h.id) as searchable,                           -- only handle string searchable
+    h.id as name                                              -- handle string as display name
+  FROM _imsg.handle h
+  WHERE h.ROWID NOT IN (SELECT handle_id FROM contacts)      -- exclude handles already processed above
+  ORDER BY name
+  SQL
+
+
+################################################################################
+### Caching ####################################################################
+################################################################################
+
+$db.execute <<~SQL
+  CREATE TABLE IF NOT EXISTS _cache.cache (
+    guid TEXT PRIMARY KEY,
+    text TEXT,
+    payload_json JSON,
+    link_url TEXT
+  )
 SQL
 
-synced_contacts, synced_messages = [sync_state, new_state].map{ it.values_at "contacts_timestamp", "messages_sequence" }.transpose.map{_1==_2}
+CACHE = Hash.new{ |h,guid| h[guid] = { text: nil, payload: nil, payload_json: nil, link_url: nil } }
+
+def cache_text(guid, attr) = CACHE[guid][:text] ||= AttributedStringExtractor.extract(attr)
+def cache_payload(guid, data)
+  CACHE[guid][:payload]      ||= NSKeyedArchive.unarchive(data)
+  CACHE[guid][:payload_json] ||= CACHE[guid][:payload].to_json
+end
+
+$db.ƒ(:cache_text)         { |guid, attr| cache_text(guid, attr) }
+$db.ƒ(:cache_payload_json) { |guid, data| cache_payload(guid, data) }
+
+end_mark = '\uFFFC\p{Space}'  # \uFFFC is the attributed string object marker
+noallow = Regexp.escape('\|^"<>{}[]') + end_mark
+RX_URL = %r(\bhttps?://[^#{noallow}]{4,}?(?=["':;,\.\)]{0,3}(?:[#{end_mark}]|$)))i
+$db.ƒ(:cache_link_url) do |guid, data, text, attr|
+  next CACHE[guid][:link_url] if CACHE[guid][:link_url]
+  text = cache_text(guid, attr)
+  cache_payload(guid, data)
+  payload = CACHE[guid][:payload]
+
+  CACHE[guid][:link_url] = \
+    payload&.dig("richLinkMetadata", "URL") ||
+    payload&.dig("richLinkMetadata", "originalURL") ||
+    (text && text[RX_URL])
+end
+
+at_exit do
+  # puts CACHE.size # debug
+  # next # disable saving cache
+  batch_size = 40_000
+  CACHE.each_slice(batch_size) do |batch|
+    values = batch.map do |guid, row|
+      [guid, *row.values_at(:text, :payload_json, :link_url)]
+      .map  {|v| v ? "'#{SQLite3::Database.quote(v)}'" : "NULL" }
+      .then { "(#{it.join(', ')})" }
+    end
+    $db.execute <<~SQL
+      INSERT INTO _cache.cache (guid, text, payload_json, link_url) VALUES #{values*?,}
+      ON CONFLICT(guid) DO UPDATE SET
+        text = COALESCE(_cache.cache.text, excluded.text),
+        payload_json = COALESCE(_cache.cache.payload_json, excluded.payload_json),
+        link_url     = COALESCE(_cache.cache.link_url, excluded.link_url)
+      SQL
+  end
+end
+
+################################################################################
+### Main message view ##########################################################
+################################################################################
+
+APPLE_EPOCH = 978307200
+UNIX_TIME = "((m.date / 1000000000) + #{APPLE_EPOCH})"
+$db.execute <<~SQL
+  CREATE TEMP VIEW message_view AS
+  WITH chat_members AS (
+    SELECT
+      c.ROWID as chat_id,
+      (COUNT(DISTINCT hg.handle_id) > 1) as is_group_chat,
+      json_group_array(DISTINCT hg.name) as member_names,
+      json_group_array(DISTINCT term.value) as members_searchable
+    FROM _imsg.chat c
+    JOIN _imsg.chat_handle_join chj ON c.ROWID = chj.chat_id
+    LEFT JOIN handle_groups hg ON chj.handle_id = hg.handle_id
+    CROSS JOIN json_each(hg.searchable) as term  -- flatten each member's searchable array
+    GROUP BY c.ROWID
+  ),
+  computed AS (
+    SELECT
+      m.ROWID,
+      COALESCE(m.text, x.text,
+        IIF(x.guid IS NULL, cache_text(m.guid, m.attributedBody)))
+        as text,
+      COALESCE(x.payload_json,
+        IIF(x.guid IS NULL, cache_payload_json(m.guid, m.payload_data)))
+        as payload_json,
+      COALESCE(x.link_url,
+        IIF(x.guid IS NULL, cache_link_url(m.guid, m.payload_data, m.text, m.attributedBody)))
+        as link_url
+    FROM message m
+    LEFT JOIN cache x ON m.guid = x.guid
+  )
+  SELECT
+    m.ROWID                                                             as message_id,
+    m.guid,
+    m.associated_message_type,
+    m.service,
+    m.cache_has_attachments                                             as has_attachments,
+    mc.text,
+    mc.payload_json,
+    c.display_name                                                      as chat_name,
+    #{UNIX_TIME}                                                        as unix_time,
+    strftime('%Y-%m-%d', #{UNIX_TIME}, 'unixepoch')                     as utc_date,
+    strftime('%Y-%m-%d', #{UNIX_TIME}, 'unixepoch', 'localtime')        as local_date,
+    datetime(#{UNIX_TIME}, 'unixepoch')                                 as utc_time,
+    datetime(#{UNIX_TIME}, 'unixepoch', 'localtime')                    as local_time,
+    m.is_from_me                                                        as is_from_me,
+    m.payload_data                                                      as payload_data,
+    mc.link_url,
+    cm.is_group_chat,
+    CASE
+    WHEN hg_recipient.name IS NOT NULL
+    THEN json_array(hg_recipient.name)
+    WHEN hg_sender.searchable IS NULL OR hg_sender.searchable != cm.members_searchable
+    THEN cm.member_names
+    ELSE NULL
+    END                                                                 as recipient_names,
+    CASE
+    WHEN hg_recipient.searchable IS NOT NULL
+    THEN hg_recipient.searchable
+    WHEN hg_sender.searchable IS NULL OR hg_sender.searchable != cm.members_searchable
+    THEN cm.members_searchable
+    ELSE NULL
+    END                                                                 as recipients_searchable,
+    hg_sender.name                                                      as sender_name,
+    hg_recipient.name                                                   as recipient_name,
+    COALESCE(cm.member_names, json_array())                             as member_names,         -- all chat members
+    hg_sender.searchable                                                as sender_searchable,    -- for optional filtering
+    hg_recipient.searchable                                             as recipient_searchable, -- for optional filtering
+    cm.members_searchable                                               as members_searchable    -- for optional filtering
+  FROM _imsg.message m
+  JOIN computed mc                      ON m.ROWID = mc.ROWID
+  LEFT JOIN _imsg.chat_message_join cmj ON m.ROWID = cmj.message_id
+  LEFT JOIN _imsg.chat c                ON cmj.chat_id = c.ROWID
+  LEFT JOIN handle_groups hg_sender     ON m.handle_id = hg_sender.handle_id    AND m.is_from_me = 0
+  LEFT JOIN handle_groups hg_recipient  ON m.handle_id = hg_recipient.handle_id AND m.is_from_me = 1
+  LEFT JOIN chat_members cm             ON c.ROWID = cm.chat_id
+  WHERE
+  ((associated_message_type IS NULL OR associated_message_type < 1000)                               -- Exclude associated reaction messages 1000: stickers, 20xx: reactions; 30xx: remove reactions
+    AND (balloon_bundle_id IS NULL OR balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider')  -- Exclude Digital touch lol
+  )
+  SQL
+
+__END__
+################################################################################
+### ??? ########################################################################
+################################################################################
 
 
-### Messages to ignore completely
 
-# notice digital touch had to be excluded bc they broke payload parsing. now it just nils, but still, useless, so less stuff to process
+Print.query(<<~SQL, title: "les q")
+SELECT
+  -- message_id,
+  -- service,
+  sender_name,
+  sender_searchable,
+  recipient_name,
+  is_from_me as "me?",
+  -- is_group_chat,
+  recipient_names,
+  member_names,
+  -- recipient_searchable,
+  -- recipients_searchable,
+  -- members_searchable,
+  -- chat_name,
+  text,
+  -- link_url,
+
+  -- (instr(payload_data, 'richLinkMetadata') > 0) AS  Lrich,
+  -- json_extract(payload, '$.richLinkMetadata.URL') AS Lurl,
+  -- json_extract(payload, '$.richLinkMetadata.originalURL') AS Lorig,
+  -- text AS Ltext,
+
+  -- unarchive_keyed(payload_data) as payload,
+  local_time
+FROM message_view
+WHERE 1=1
+-- and is_group_chat
+-- and is_from_me
+AND service = 'iMessage'
+-- AND text REGEXP '\\bhttps?://'    --'damn editors
+-- AND payload_data IS NULL
+-- AND instr(payload_data, 'youtube') > 0
+-- AND instr(payload_data, 'richLinkMetadata') > 0
+-- AND link_url REGEXP '^https://(www\\.)?youtu' --'
+AND link_url REGEXP 'soundcl'
+-- AND link_url LIKE 'https://www.youtu%'
+-- AND link_url IS NULL
+-- AND json_extract(unarchive_keyed(payload_data), '$.richLinkMetadata.URL') IS NOT NULL
+-- AND unarchive_keyed(payload_data) LIKE '%richLinkMetadata%'
+-- AND EXISTS (SELECT 1 FROM json_each(members_searchable) WHERE value REGEXP '(?i:noah)')
+-- AND chat_name NOT REGEXP 'psycho'
+LIMIT 100
+SQL
+
+__END__
+
+
+# Print.query("select * from contacts order by is_me, handle_id, contact_id, handle", title: "contacts having handles")
+# Print.query("select * from handle_groups", title: "handle_groups")
+
+# Print.query(<<~SQL, title: "s")
+# -- 1. Messages where person is sender
+# SELECT m.ROWID,
+#   hg.name,
+#   coalesce(m.text, unarchive_string(m.attributedBody)) as text
+# FROM _imsg.message m
+# JOIN handle_groups hg ON m.handle_id = hg.handle_id
+# WHERE EXISTS(
+#   SELECT 1 FROM json_each(hg.searchable)
+#   WHERE value REGEXP 'Regina'
+# )
+# SQL
+# exit
+
+Print.query(<<~SQL, title: "s")
+-- 2. Messages in group chats where person is a member
+SELECT m.ROWID,
+  hg_sender.name as sender_name,                              -- sender's name
+  hg_member.name as member_name,                              -- matched member's name
+  c.display_name,
+  coalesce(m.text, unarchive_string(m.attributedBody)) as text
+FROM _imsg.message m
+JOIN _imsg.chat_message_join cmj ON m.ROWID = cmj.message_id
+JOIN _imsg.chat c ON cmj.chat_id = c.ROWID
+JOIN _imsg.chat_handle_join chj ON c.ROWID = chj.chat_id
+JOIN handle_groups hg_member ON chj.handle_id = hg_member.handle_id  -- member match
+LEFT JOIN handle_groups hg_sender ON m.handle_id = hg_sender.handle_id  -- sender lookup
+WHERE EXISTS(
+  SELECT 1 FROM json_each(hg_member.searchable)
+  WHERE value REGEXP 'Regina'
+)
+AND c.ROWID IN (                                              -- ensure it's a group chat
+  SELECT chat_id
+  FROM _imsg.chat_handle_join
+  GROUP BY chat_id
+  HAVING COUNT(handle_id) > 1
+)
+
+
+SQL
+# Print.query(<<~SQL, title: "s")
+#   SELECT handle_id, name
+#   FROM handle_groups
+#   WHERE EXISTS(SELECT 1 FROM json_each(searchable) WHERE value REGEXP 'ped')
+# SQL
+
+
+# Beware double contacts for same person happen often enough; imessage just picks one, idk; use most recent?
+# also could be problematic if same handle actually exists for multiple contacts but then ¯\_(ツ)_/¯
+
+# next up, build from/to/with/chat queries... errrr
+# so find contact by matching against all handles + name, nick, org only if no name
+#
+# handle id -> matchables(hanldes,name | just handle)
+# so union:
+# contacts (handle_id, matchables, name)
+# contactless handles (handle_id, [handle], handle)
+
+# first need queries form each of from/to/with ie view
+#
+# from rx -> rx handles, name -> get handle ids (< ruby fn up to here?) -> query
+# showing a message from/to:
+#   handle_id -> matching contacts -> uniq names ; none found use handle
+#   no handle id -> is group chat -> find all handle ids from join table -> same as above
+#   use a handle_id->name|handle table?
+
+# $db.execute "PRAGMA query_only = ON"
+
+
+# TODO: rename this, since cond is actually for inclusion
 MESSAGES_EXCLUSION = <<~SQL
   ( (associated_message_type IS NULL OR associated_message_type < 2000)                              -- # Exclude metadata/reaction messages
     AND (balloon_bundle_id IS NULL OR balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider')  -- # Digital touch lol; another check: substr(hex(payload_data), 1, 8) = '08081100'
   )
 SQL
-
-# Check if messages_decoded table exists and build exclusion
-exclusion_rules = "#{MESSAGES_EXCLUSION}"
-last_row = sync_state["messages_sequence"]                   # a roundabout way to get this value but since we already have it…
-exclusion_rules << " AND m.ROWID > #{last_row}" if last_row  # exclude messages previously imported
-
-
-Timer.lap "setup"
-
-
-### Begin fancy db stuff
-
-if !synced_contacts && !synced_messages
-  # table: contacts
-  # all contacts, like:
-  # id      | 42
-  # name    | "John Smith"
-  # emails  | ["john@gmail.com", "john@work.com"]
-  # numbers | ["+14155551212", "+14155551213"]
-  $db.execute "DROP TABLE IF EXISTS contacts"
-  $db.execute <<-SQL
-    CREATE TABLE contacts AS
-    WITH emails AS (
-      SELECT ZOWNER, json_group_array(ZADDRESS) as emails
-      FROM contacts_db.ZABCDEMAILADDRESS GROUP BY ZOWNER
-    ),
-    phones AS (
-      SELECT ZOWNER, json_group_array(plusdigits(ZFULLNUMBER)) as numbers
-      FROM contacts_db.ZABCDPHONENUMBER GROUP BY ZOWNER
-    )
-    SELECT
-      r.Z_PK as id,
-      r.ZFIRSTNAME || ' ' || r.ZLASTNAME as name,
-      e.emails as emails,
-      p.numbers as numbers,
-      IIF(r.ZCONTAINERWHERECONTACTISME IS NOT NULL, 1, 0) as is_me
-    FROM contacts_db.ZABCDRECORD r
-    LEFT JOIN emails e ON e.ZOWNER = r.Z_PK
-    LEFT JOIN phones p ON p.ZOWNER = r.Z_PK;
-  SQL
-  Timer.lap "contacts table created"
-
-  # table: handle_contacts
-  # maps message handles to contact IDs:
-  # handle     | "+14155551212"
-  # contact_id | 42
-  $db.execute "DROP TABLE IF EXISTS handle_contacts"
-  $db.execute <<-SQL
-    CREATE TABLE handle_contacts AS
-    WITH all_handles AS (
-      SELECT DISTINCT id as handle FROM messages_db.handle
-      UNION
-      SELECT DISTINCT destination_caller_id as handle
-      FROM messages_db.message
-      WHERE destination_caller_id IS NOT NULL
-    )
-    SELECT
-      h.handle as handle,
-      c.id as contact_id
-    FROM all_handles h
-    JOIN contacts c ON (
-      EXISTS (SELECT 1 FROM json_each(c.numbers) WHERE h.handle = value) OR
-      EXISTS (SELECT 1 FROM json_each(c.emails) WHERE h.handle = value)
-    );
-  SQL
-  $db.execute "CREATE UNIQUE INDEX idx_handle_contacts_unique ON handle_contacts(handle, contact_id)"
-  Timer.lap "handle_contacts table created, indexed"
-
-  # Add missing handles for "me" contact (past phone numbers, etc)
-  $db.execute <<-SQL
-    INSERT OR IGNORE INTO handle_contacts (handle, contact_id)
-    SELECT DISTINCT
-      destination_caller_id as handle,
-      (SELECT id FROM contacts WHERE is_me = 1 LIMIT 1) as contact_id
-    FROM messages_db.message
-    WHERE is_from_me = 1
-      AND destination_caller_id IS NOT NULL
-      AND destination_caller_id NOT IN (SELECT handle FROM handle_contacts);
-  SQL
-  Timer.lap "handle_contacts table updated from messages"
-
-  # view: contact_details
-  # maps handles to full contact info as json
-  # handle   | "+14155551212"
-  # contact  | { "name":    "John Smith",
-  #          |   "emails":  ["john@gmail.com", "john@work.com"],
-  #          |   "numbers": ["+14155551212", "+14155551213"] }
-  $db.execute <<~SQL
-    CREATE VIEW contact_details AS
-    SELECT
-      h.handle as handle,
-      json_object(
-        'name',    c.name,
-        'emails',  json(COALESCE(c.emails, '[]')),
-        'numbers', json(COALESCE(c.numbers, '[]'))
-      ) as contact
-    FROM handle_contacts h
-    JOIN contacts c ON c.id = h.contact_id;
-  SQL
-  Timer.lap "contact_details view created"
-end # if !synced_contacts && !synced_messages
-
-
-### messages cache ahaed
-if !synced_messages
-
-  MESSAGES_DECODED_QUERY = <<~SQL
-    WITH chat_participants AS (
-      SELECT
-        chat_id,
-        jsonb_group_array(h.id) as participant_handles
-      FROM messages_db.chat_handle_join chj
-      JOIN messages_db.handle h ON chj.handle_id = h.ROWID
-      GROUP BY chat_id
-    ),
-    message_participants AS (
-      SELECT
-        m.ROWID as message_id,
-        (SELECT json_group_array(value) FROM (
-          SELECT DISTINCT value FROM (
-            SELECT value FROM json_each(p.participant_handles)
-            UNION ALL
-            -- guess we still need to decide on if include this or not, prob not
-            -- SELECT m.destination_caller_id WHERE m.destination_caller_id IS NOT NULL
-            -- UNION ALL
-            SELECT h.id WHERE h.id IS NOT NULL
-          )
-        )) as participant_handles,
-        IIF(m.is_from_me, m.destination_caller_id, h.id) as sender_handle
-      FROM messages_db.message m
-      LEFT JOIN messages_db.handle h ON m.handle_id = h.ROWID
-      LEFT JOIN messages_db.chat_message_join cm ON m.ROWID = cm.message_id
-      LEFT JOIN messages_db.chat c ON cm.chat_id = c.ROWID
-      LEFT JOIN chat_participants p ON c.ROWID = p.chat_id
-      WHERE #{exclusion_rules}
-    )
-    SELECT
-      m.ROWID as id,
-      m.guid,
-      mp.sender_handle,
-      mp.participant_handles,
-      (SELECT json_group_array(json(cd.contact))
-        FROM contact_details cd, json_each(mp.participant_handles) ph
-        WHERE cd.handle = ph.value) as participant_details,
-      (SELECT cd.contact
-        FROM contact_details cd
-        WHERE cd.handle = mp.sender_handle) as sender_details,
-      IIF(m.attributedBody IS NOT NULL, unarchive_attributed(m.attributedBody), NULL) as text_decoded,
-      IIF(m.payload_data IS NOT NULL, unarchive_keyed(payload_data), NULL) as payload
-    FROM messages_db.message m
-    LEFT JOIN message_participants mp ON m.ROWID = mp.message_id
-    WHERE #{exclusion_rules}
-  SQL
-
-
-  $db.execute "CREATE TABLE IF NOT EXISTS messages_decoded AS #{MESSAGES_DECODED_QUERY}"
-  $db.execute "CREATE INDEX IF NOT EXISTS idx_messages_decoded_id ON messages_decoded(id)"
-  $db.execute "INSERT INTO messages_decoded #{MESSAGES_DECODED_QUERY} AND m.ROWID > (SELECT COALESCE(MAX(id), 0) FROM messages_decoded)"
-  Timer.lap "messages_decoded table updated"
-end # if !synced_messages
-
-
-APPLE_EPOCH = 978307200
-UNIX_TIME = "((m.date / 1000000000) + #{APPLE_EPOCH})"
-MESSAGES_QUERY = <<~SQL
-  SELECT
-    m.ROWID as id,
-    d.guid,
-    d.sender_handle,
-    #{UNIX_TIME} as unix_time,
-    strftime('%Y-%m-%d', #{UNIX_TIME}, 'unixepoch') as utc_date,
-    strftime('%Y-%m-%d', #{UNIX_TIME}, 'unixepoch', 'localtime') as local_date,
-    datetime(#{UNIX_TIME}, 'unixepoch') as utc_time,
-    datetime(#{UNIX_TIME}, 'unixepoch', 'localtime') as local_time,
-    c.style as chat_style,
-    c.display_name as chat_name,
-    d.participant_handles,
-    d.participant_details,
-    d.sender_details,
-    d.text_decoded,
-    COALESCE(m.text, d.text_decoded, '') as computed_text,
-    d.payload,
-    m.cache_has_attachments as has_attachments,
-    m.is_from_me
-  FROM messages_db.message m
-  LEFT JOIN messages_db.chat_message_join cm ON m.ROWID     = cm.message_id
-  LEFT JOIN messages_db.chat c               ON cm.chat_id  = c.ROWID
-  LEFT JOIN messages_decoded d               ON m.ROWID     = d.id
-  WHERE #{MESSAGES_EXCLUSION}
-SQL
-
-$db.execute "CREATE TEMP VIEW messages AS #{MESSAGES_QUERY}"
-Timer.lap "messages view created"
-
-
-# Update cache with fresh values
-$db.execute "INSERT OR REPLACE INTO sync_state (key, value) VALUES ('contacts_timestamp', ?), ('messages_sequence', ?)", new_state.values_at("contacts_timestamp", "messages_sequence")
-
-Timer.finish
-
-
-__END__
-
-$ sqlite3 ~/Library/Messages/chat.db .schema  | grep "CREATE TABLE"
-
--- Loading resources from /Users/kch/.sqliterc
-CREATE TABLE _SqliteDatabaseProperties (key TEXT, value TEXT, UNIQUE(key));
-CREATE TABLE deleted_messages (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, guid TEXT NOT NULL);
-CREATE TABLE sqlite_sequence(name,seq);
-CREATE TABLE chat_handle_join (chat_id INTEGER REFERENCES chat (ROWID) ON DELETE CASCADE, handle_id INTEGER REFERENCES handle (ROWID) ON DELETE CASCADE, UNIQUE(chat_id, handle_id));
-CREATE TABLE sync_deleted_messages (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, guid TEXT NOT NULL, recordID TEXT );
-CREATE TABLE message_processing_task (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, guid TEXT NOT NULL, task_flags INTEGER NOT NULL );
-CREATE TABLE handle (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, id TEXT NOT NULL, country TEXT, service TEXT NOT NULL, uncanonicalized_id TEXT, person_centric_id TEXT, UNIQUE (id, service) );
-CREATE TABLE sync_deleted_chats (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, guid TEXT NOT NULL, recordID TEXT,timestamp INTEGER);
-CREATE TABLE message_attachment_join (message_id INTEGER REFERENCES message (ROWID) ON DELETE CASCADE, attachment_id INTEGER REFERENCES attachment (ROWID) ON DELETE CASCADE, UNIQUE(message_id, attachment_id));
-CREATE TABLE sync_deleted_attachments (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, guid TEXT NOT NULL, recordID TEXT );
-CREATE TABLE kvtable (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, key TEXT UNIQUE NOT NULL, value BLOB NOT NULL);
-CREATE TABLE chat_message_join (chat_id INTEGER REFERENCES chat (ROWID) ON DELETE CASCADE, message_id INTEGER REFERENCES message (ROWID) ON DELETE CASCADE, message_date INTEGER DEFAULT 0, PRIMARY KEY (chat_id, message_id));
-CREATE TABLE message (ROWID INTEGER PRIMARY KEY AUTOINCREMENT, guid TEXT UNIQUE NOT NULL, text TEXT, replace INTEGER DEFAULT 0, service_center TEXT, handle_id INTEGER DEFAULT 0, subject TEXT, country TEXT, attributedBody BLOB, version INTEGER DEFAULT 0, type INTEGER DEFAULT 0, service TEXT, account TEXT, account_guid TEXT, error INTEGER DEFAULT 0, date INTEGER, date_read INTEGER, date_delivered INTEGER, is_delivered INTEGER DEFAULT 0, is_finished INTEGER DEFAULT 0, is_emote INTEGER DEFAULT 0, is_from_me INTEGER DEFAULT 0, is_empty INTEGER DEFAULT 0, is_delayed INTEGER DEFAULT 0, is_auto_reply INTEGER DEFAULT 0, is_prepared INTEGER DEFAULT 0, is_read INTEGER DEFAULT 0, is_system_message INTEGER DEFAULT 0, is_sent INTEGER DEFAULT 0, has_dd_results INTEGER DEFAULT 0, is_service_message INTEGER DEFAULT 0, is_forward INTEGER DEFAULT 0, was_downgraded INTEGER DEFAULT 0, is_archive INTEGER DEFAULT 0, cache_has_attachments INTEGER DEFAULT 0, cache_roomnames TEXT, was_data_detected INTEGER DEFAULT 0, was_deduplicated INTEGER DEFAULT 0, is_audio_message INTEGER DEFAULT 0, is_played INTEGER DEFAULT 0, date_played INTEGER, item_type INTEGER DEFAULT 0, other_handle INTEGER DEFAULT 0, group_title TEXT, group_action_type INTEGER DEFAULT 0, share_status INTEGER DEFAULT 0, share_direction INTEGER DEFAULT 0, is_expirable INTEGER DEFAULT 0, expire_state INTEGER DEFAULT 0, message_action_type INTEGER DEFAULT 0, message_source INTEGER DEFAULT 0, associated_message_guid TEXT, associated_message_type INTEGER DEFAULT 0, balloon_bundle_id TEXT, payload_data BLOB, expressive_send_style_id TEXT, associated_message_range_location INTEGER DEFAULT 0, associated_message_range_length INTEGER DEFAULT 0, time_expressive_send_played INTEGER, message_summary_info BLOB, ck_sync_state INTEGER DEFAULT 0, ck_record_id TEXT, ck_record_change_tag TEXT, destination_caller_id TEXT, is_corrupt INTEGER DEFAULT 0, reply_to_guid TEXT, sort_id INTEGER, is_spam INTEGER DEFAULT 0, has_unseen_mention INTEGER DEFAULT 0, thread_originator_guid TEXT, thread_originator_part TEXT, syndication_ranges TEXT, synced_syndication_ranges TEXT, was_delivered_quietly INTEGER DEFAULT 0, did_notify_recipient INTEGER DEFAULT 0, date_retracted INTEGER DEFAULT 0, date_edited INTEGER DEFAULT 0, was_detonated INTEGER DEFAULT 0, part_count INTEGER, is_stewie INTEGER DEFAULT 0, is_sos INTEGER DEFAULT 0, is_critical INTEGER DEFAULT 0, bia_reference_id TEXT DEFAULT NULL, is_kt_verified INTEGER DEFAULT 0, fallback_hash TEXT DEFAULT NULL, associated_message_emoji TEXT DEFAULT NULL, is_pending_satellite_send INTEGER DEFAULT 0, needs_relay INTEGER DEFAULT 0, schedule_type INTEGER DEFAULT 0, schedule_state INTEGER DEFAULT 0, sent_or_received_off_grid INTEGER DEFAULT 0, date_recovered INTEGER DEFAULT 0);
-CREATE TABLE chat (ROWID INTEGER PRIMARY KEY AUTOINCREMENT, guid TEXT UNIQUE NOT NULL, style INTEGER, state INTEGER, account_id TEXT, properties BLOB, chat_identifier TEXT, service_name TEXT, room_name TEXT, account_login TEXT, is_archived INTEGER DEFAULT 0, last_addressed_handle TEXT, display_name TEXT, group_id TEXT, is_filtered INTEGER DEFAULT 0, successful_query INTEGER, engram_id TEXT, server_change_token TEXT, ck_sync_state INTEGER DEFAULT 0, original_group_id TEXT, last_read_message_timestamp INTEGER DEFAULT 0, cloudkit_record_id TEXT, last_addressed_sim_id TEXT, is_blackholed INTEGER DEFAULT 0, syndication_date INTEGER DEFAULT 0, syndication_type INTEGER DEFAULT 0, is_recovered INTEGER DEFAULT 0, is_deleting_incoming_messages INTEGER DEFAULT 0);
-CREATE TABLE attachment (ROWID INTEGER PRIMARY KEY AUTOINCREMENT, guid TEXT UNIQUE NOT NULL, created_date INTEGER DEFAULT 0, start_date INTEGER DEFAULT 0, filename TEXT, uti TEXT, mime_type TEXT, transfer_state INTEGER DEFAULT 0, is_outgoing INTEGER DEFAULT 0, user_info BLOB, transfer_name TEXT, total_bytes INTEGER DEFAULT 0, is_sticker INTEGER DEFAULT 0, sticker_user_info BLOB, attribution_info BLOB, hide_attachment INTEGER DEFAULT 0, ck_sync_state INTEGER DEFAULT 0, ck_server_change_token_blob BLOB, ck_record_id TEXT, original_guid TEXT UNIQUE NOT NULL, is_commsafety_sensitive INTEGER DEFAULT 0, emoji_image_content_identifier TEXT DEFAULT NULL, emoji_image_short_description TEXT DEFAULT NULL, preview_generation_state INTEGER DEFAULT 0);
-CREATE TABLE chat_recoverable_message_join (chat_id INTEGER REFERENCES chat (ROWID) ON DELETE CASCADE, message_id INTEGER REFERENCES message (ROWID) ON DELETE CASCADE, delete_date INTEGER, ck_sync_state INTEGER DEFAULT 0, PRIMARY KEY (chat_id, message_id), CHECK (delete_date != 0));
-CREATE TABLE unsynced_removed_recoverable_messages (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, chat_guid TEXT NOT NULL, message_guid TEXT NOT NULL, part_index INTEGER);
-CREATE TABLE recoverable_message_part (chat_id INTEGER REFERENCES chat (ROWID) ON DELETE CASCADE, message_id INTEGER REFERENCES message (ROWID) ON DELETE CASCADE, part_index INTEGER, delete_date INTEGER, part_text BLOB NOT NULL, ck_sync_state INTEGER DEFAULT 0, PRIMARY KEY (chat_id, message_id, part_index), CHECK (delete_date != 0));
-CREATE TABLE scheduled_messages_pending_cloudkit_delete (ROWID INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE, guid TEXT NOT NULL, recordID TEXT );
-CREATE TABLE sqlite_stat1(tbl,idx,stat);
