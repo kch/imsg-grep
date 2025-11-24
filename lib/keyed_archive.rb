@@ -17,6 +17,7 @@ class NSKeyedArchive
   def self.json(...) = new(...).json
 
   def initialize(data)
+    return unless data
     return if data[0, 4] == "\x08\x08\x11\x00" # DigitalTouchBalloonProvider row; another format, ignore
     raise "no bplist: #{data}" unless data.start_with?("bplist")
     @data = BPList.parse data
