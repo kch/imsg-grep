@@ -94,7 +94,6 @@ begin
   result.exclusive json_opts, text_opts
   result.exclusive json_opts, capture_opts
   result.exclusive "sent", "received"
-  result.standalone "reset"
 
   for opt in result
     case opt
@@ -126,7 +125,7 @@ begin
     in label: "reverse"          then @reverse = true
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "utc"              then @utc = true
-    in label: "reset"            then reset_cache; exit
+    in label: "reset"            then reset_cache
     in label: "help"             then puts HELP; exit
     in label: "debug"            then @debug = true
     # in label: "opts"             then puts "Remaining options: " + ((?0..?z).to_a.grep(/\w/) - optlist.flat_map{ it.names.reject{it[1]} }).join(", ")
