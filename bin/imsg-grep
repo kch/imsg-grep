@@ -108,7 +108,7 @@ begin
     in label: "no-ignore-case"   then @case = :sensitive
     in label: "literal"          then @mode = :literal
     in label: "regexp"           then @mode = :regexp
-    in label: "max", value:      then @limit = parse_p_int(value)
+    in label: "max", value:      then @limit = parse_p_int(value); @allow_all = true
     in label: "all"              then @allow_all = true
     in label: "sent"             then add_cond :from_me, true
     in label: "received"         then add_cond :from_me, false
