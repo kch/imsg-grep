@@ -82,12 +82,14 @@ def print_message_details(db, msg_id)
       orig.associated_message_type
 
     FROM  messages_db.message orig
-    JOIN  messages m ON m.id = orig.ROWID
+    LEFT JOIN messages m ON m.id = orig.ROWID
     WHERE m.id = #{msg_id}
   SQL
 end
 
 if __FILE__ == $0 && ARGV[0]
-  msg_id = ARGV[0].to_i
-  print_message_details($db, msg_id)
+  ARGV.each do |arg|
+    msg_id = arg.to_i
+    print_message_details($db, msg_id)
+  end
 end
