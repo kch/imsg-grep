@@ -309,13 +309,14 @@ Participant filtering:
 
 Match handling:
     -n, --max=NUM          Only print top NUM messages
-    -C, --smart-case       Case-sensitive when pattern has uppercase letters (default)
-                           Turn off with -i or -I
+    -C, --smart-case       Case-sensitive only when pattern has uppercase
+                           letters. (default, turn off with -i or -I)
     -i, --ignore-case      Case-insensitive matches
     -I, --no-ignore-case   Case-sensitive matches
     -l, --literal          Literal string match, no regex
     -x, --regexp           Regexp match (default, turn off with -l)
-    -a, --all              Allow calling with no conditions (will print all messages)
+    -a, --all              Allow calling with no conditions
+                           (will print every message unless -n)
 
 Message type filtering:
     -s, --sent             Only match sent
@@ -332,7 +333,7 @@ Output formatting:
     -1, --one-line         [from -> to] message, newlines removed
     -j, --json             JSON output
     -p, --payload          Include payload in JSON
-    -V, --reverse          Reverse order of output (oldest first)
+    -V, --reverse          Reverse sort order (oldest first)
 
 Other:
     -R, --reset            Clear and rebuild cache
