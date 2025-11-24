@@ -115,8 +115,9 @@ begin
     in label: "received"         then add_cond :from_me, false
     in label: "links", value:nil then add_cond :links, true
     in label: "links", value:    then add_cond :links, value
-    in label: "youtube"          then add_cond :links, "youtube"
-    in label: "soundcloud"       then add_cond :links, "soundcloud"
+    in label: "youtube"          then add_cond :links, :youtube
+    in label: "soundcloud"       then add_cond :links, :soundcloud
+    in label: "twitter"          then add_cond :links, :twitter
     in label: "capture", value:  then @capture = parse_capture(value)
     in label: "message-only"     then @msg_only = true
     in label: "one-line"         then @one_line = true
@@ -184,8 +185,9 @@ begin
       in :until, _             then date_cmp(:<=, value)
       in :from_me, cond        then "is_from_me IS #{cond}"
       in :links, true          then "link_url IS NOT NULL"
-      in :links, "youtube"     then match(:link_url, %r[\Ahttps?://((www\.)?youtube\.com|youtu\.be)/]i)
-      in :links, "soundcloud"  then match(:link_url, %r[\Ahttps?://(on\.)?soundcloud\.com/]i)
+      in :links, :youtube      then match(:link_url, %r[\Ahttps?://((www\.)?youtube\.com|youtu\.be)/]i)
+      in :links, :soundcloud   then match(:link_url, %r[\Ahttps?://(on\.)?soundcloud\.com/]i)
+      in :links, :twitter      then match(:link_url, %r[\Ahttps?://(pic\.)?(twitter|x)\.com/]i)
       in :links, String        then match(:link_url, mk_regexp(value))
       in :from,    Regexp      then match_searchable(:sender_searchable, value)
       in :to,      Regexp      then match_searchable(:recipients_searchable, value)
@@ -322,6 +324,7 @@ Message type filtering:
     -L, --links[=URL]      Find links
     -Y, --youtube          Find youtube links
     -S, --soundcloud       Find soundcloud links
+    -X, --twitter          Find twitter links
 
 Output formatting:
     --[no-]color           Enable/disable color output
