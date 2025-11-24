@@ -159,6 +159,9 @@ begin
     $stderr.puts "Warning: #{result[:capture]._name} used with multiple message patterns. Will use last given" unless pats.empty?
   end
 
+  if @conditions.values.all?(&:empty?) && !@allow_all
+    raise OptionError, "No filter conditions given. Use --all to allow, or see --help"
+  end
 
   def match(x, r) = "#{x} REGEXP '#{SQLite3::Database.quote r.to_s}'"
   def match_searchable(x, r) = "EXISTS (SELECT 1 FROM json_each(#{x}) WHERE #{match(:value, r)})"
