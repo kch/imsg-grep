@@ -179,7 +179,7 @@ begin
   sql_cond = @conditions.map do |key, conds|
     next if conds.empty?
     conds.map do |value|
-      case [key, value]
+      cond = case [key, value]
       in :since, _             then date_cmp(:>=, value)
       in :until, _             then date_cmp(:<=, value)
       in :from_me, cond        then "is_from_me IS #{cond}"
@@ -194,7 +194,11 @@ begin
       in :chat,    Regexp      then match(:chat_name, value)
       in :message, Regexp      then match(:text, value)
       end
-    end.map{ "(#{it})" }.join(" OR \n")
+      [key, "(#{cond})"]
+    end.group_by(&:first).transform_values{ it.map(&:last) }.map do |key, conds|
+      op = key == :links ? "OR" : "AND"
+      conds.join(" #{op} \n")
+    end.join
   end.compact.map{ "(#{it})" }.join(" AND \n")
 
   limit = "LIMIT #{@limit}" if @limit
