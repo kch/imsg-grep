@@ -1,9 +1,0 @@
-# test files
-dat/
-
-# unarchiver products
-lib/attr_str
-lib/attr_str.dylib
-
-# dev junkyard
-.scrap/
