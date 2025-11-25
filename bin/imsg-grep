@@ -334,7 +334,7 @@ Match handling:
     -a, --all              Allow calling with no conditions
                            (will print every message unless -n)
 
-Message type filtering:
+Message filtering:
     -s, --sent             Only match sent
     -r, --received         Only match received
     -L, --links[=URL]      Find links
