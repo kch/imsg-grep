@@ -225,13 +225,13 @@ begin
   SQL
   IO.popen(['bat', '-l', 'sql'], 'w') { it << sql } if @debug
 
+  found = $db.select_hashes(sql)
+
 ################################################################################
 ### Massage results ############################################################
 ################################################################################
 
-  found = $db.select_hashes(sql).to_a
   found.each do |msg|
-    msg.transform_keys!(&:to_sym)
     msg[:from]        ||= "me"
     msg[:to]            = JSON.parse(msg[:to] || '["me"]')
     msg[:payload]       = JSON.parse(msg.delete(:payload_json) || "null")

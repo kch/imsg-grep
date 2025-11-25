@@ -30,7 +30,7 @@ $db.execute "ATTACH DATABASE '#{CACHE_DB}' AS _cache"
 
 def reset_cache = FileUtils.rm_f(CACHE_DB)
 
-def $db.select_hashes(sql) = prepare(sql).execute.enum_for(:each_hash)
+def $db.select_hashes(sql) = prepare(sql).execute.enum_for(:each_hash).map{ it.transform_keys(&:to_sym) }
 def $db.ƒ(f, &) = define_function_with_flags(f.to_s, SQLite3::Constants::TextRep::UTF8 | SQLite3::Constants::TextRep::DETERMINISTIC, &)
 REGEX_CACHE = Hash.new { |h,src| h[src] = Regexp.new(src) }
 $db.ƒ(:regexp)           { |rx, text| REGEX_CACHE[rx].match?(text) ? 1 : 0 }
