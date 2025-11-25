@@ -1,8 +1,10 @@
 #!/usr/bin/env ruby
 # Display detailed information about a specific message by ID from the iMessage database
 
-require_relative '../lib/messages'
 require_relative '../lib/print_query'
+require_relative '../lib/messages'
+
+db = Messages.init
 
 def print_message_details(db, msg_id)
   id_cond = msg_id =~ /-/ ? "orig.guid" : "orig.ROWID"
@@ -104,6 +106,6 @@ end
 
 if __FILE__ == $0 && ARGV[0]
   ARGV.each do |id|
-    print_message_details($db, id)
+    print_message_details(db, id)
   end
 end
