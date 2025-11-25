@@ -1,0 +1,72 @@
+Date and Time Format Reference
+
+This tool accepts flexible date and time inputs for filtering messages.
+
+ABSOLUTE DATES
+  2024-01-01              Today's date in YYYY-MM-DD format
+  2024-1-1                Relaxed format (single digits OK)
+  2024-12-31              Any valid date
+
+DATES WITH TIME
+  2024-01-01 10:30        Date with time (inherits your timezone, unless -Z)
+  2024-01-01T10:30        ISO format with T separator
+  2024-01-01 10:30:45     Include seconds
+  2024-01-01T10:30Z       UTC timezone (Z suffix)
+  2024-01-01T10:30+05     Explicit timezone (short)
+  2024-01-01T10:30+05:30  Explicit timezone offset
+  2024-01-01T10:30-08:00  Negative timezone offset
+
+TIME ONLY (uses today's date, respecting -Z)
+  1:34                    24-hour format
+  23:59                   24-hour format
+  10a, 10am               10 AM
+  10p, 10pm               10 PM
+  12:34a                  12:34 AM (midnight hour)
+  12:45p                  12:45 PM (noon hour)
+  0:34a                   12:34 AM
+  1a                      1 AM
+  1p                      1 PM
+
+RELATIVE DATES (how far back)
+  1d                      1 day ago
+  7d                      7 days ago
+  1w                      1 week ago
+  2w                      2 weeks ago
+  1m                      1 month ago
+  6m                      6 months ago
+  1y                      1 year ago
+  2y                      2 years ago
+
+COMBINE RELATIVE DATES
+  1y6m                    1 year 6 months ago
+  1y6m2w3d                1 year 6 months 2 weeks 3 days ago
+  6m1w                    6 months 1 week ago
+
+RELATIVE TIME
+  1h                      1 hour ago
+  30M                     30 minutes ago (capital M for minutes)
+  30min                   30 minutes ago (alternative)
+  45s                     45 seconds ago
+  2h30M                   2 hours 30 minutes ago
+  1h30M45s                1 hour 30 minutes 45 seconds ago
+
+COMBINE DATE AND TIME
+  3d2h                    3 days 2 hours ago
+  1d12h30M                1 day 12 hours 30 minutes ago
+  5d3h15M30s              5 days 3 hours 15 minutes 30 seconds ago
+  1min2d                  2 days 1 minute ago (order doesn't matter)
+  1d1d2m4m                6 months, 2 days ago (additive)
+
+NOTES
+- Optional minus sign: -1d same as 1d
+- Case insensitive: 10AM, 10am, 10A all work
+- M = minutes, m = months in relative times
+- 12am = midnight, 12pm = noon
+- Invalid dates will show an error
+
+EXAMPLES
+  --since 2024-01-01      Messages after January 1, 2024
+  --until 3d              Messages before 3 days ago
+  --since 1y6m            Messages after 1 year 6 months ago
+  --until 10:30p          Messages before 10:30 PM today
+  --since "2d 3h"         Messages after 2 days 3 hours ago

@@ -43,6 +43,7 @@ Output formatting:
 Other:
     -R, --reset            Clear and rebuild cache
     -h, --help             Show this help
+    --help-dates           Show detailed DATE help
 
 
 -- TODO: split marker. -h shows above, --help adds below.

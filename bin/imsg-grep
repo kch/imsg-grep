@@ -78,7 +78,8 @@ end
 ### begin option parsing #######################################################
 ################################################################################
 begin
-  HELP = IO.read(__dir__ + "/../HELP").gsub("PROG", File.basename($0))
+  read_base = ->f{ IO.read(__dir__ + "/../#{f}") }
+  HELP = read_base["HELP"].gsub("PROG", File.basename($0))
   optlist = Strop.parse_help HELP
   optlist << Optdecl[:D, :debug] # hidden opt
   optlist << Optdecl[:opts] # dev opt
@@ -123,6 +124,7 @@ begin
     in label: "utc"              then @utc = true
     in label: "reset"            then Messages.reset_cache; exit if (result.map(&:label) - ["reset"]).empty?
     in label: "help"             then puts HELP; exit
+    in label: "help-dates"       then puts read_base["HELP_DATES"]; exit
     in label: "debug"            then @debug = true
     in arg:                      then add_cond :message, mk_regexp(arg)
     in Sep # ignore, above `arg:` will handle .rest just fine
