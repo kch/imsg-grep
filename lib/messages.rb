@@ -86,7 +86,6 @@ module Messages
     # - searchable: JSON array of searchable terms: handles + names
     # - name: contact display name computed from address book
     # - contact_ids: JSON array of contact IDs from address book (unused atm)
-    # - is_me (unused atm)
     # one row per handle_id. includes handles without contact entries
     @db.execute <<~SQL
       CREATE TEMP TABLE handle_groups AS
@@ -95,8 +94,7 @@ module Messages
           c.handle_id,
           computed_name(r.zfirstname, r.zmaidenname, r.zmiddlename, r.zlastname, r.znickname, r.zorganization)
             as name,
-          r.Z_PK as contact_id,
-          (r.zcontainerwherecontactisme IS NOT NULL) as is_me
+          r.Z_PK as contact_id
         FROM _addy.zabcdrecord r
         JOIN contacts c ON c.contact_id = r.Z_PK                  -- get all contact->handle mappings with computed names
       ),
@@ -114,17 +112,15 @@ module Messages
           FROM searchables s
           WHERE s.handle_id = c.handle_id) as searchable,         -- result: ["handle1","handle2","Name"]
         MIN(c.name) as name,                                      -- pick first computed name when duplicates
-        json_group_array(c.contact_id) as contact_ids,            -- collect all contact_ids as JSON array
-        MAX(c.is_me) as is_me                                     -- true if any contact entry is me
+        json_group_array(c.contact_id) as contact_ids             -- collect all contact_ids as JSON array
       FROM computed c
       GROUP BY c.handle_id                                        -- collapse duplicate contact entries per handle
       UNION
       SELECT -- add handles without any contact entry
         h.ROWID as handle_id,
-        json_array(h.id) as searchable,                           -- only handle string searchable
-        h.id as name,                                             -- handle string as display name
-        null,
-        null
+        json_array(h.id) as searchable,                           -- only handle is searchable
+        h.id as name,                                             -- handle as display name
+        null as contact_ids                                       -- no contacts for this handle
       FROM _imsg.handle h
       WHERE h.ROWID NOT IN (SELECT handle_id FROM contacts)      -- exclude handles already processed above
       ORDER BY name
