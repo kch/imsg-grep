@@ -122,4 +122,56 @@ class DateArgTest < Minitest::Test
     assert_equal Time.new(2024, 1, 1, 10, 30, 0, "Z"),          parse_date("2024-01-01 10:30", true, now)
     assert_equal Time.new(2024, 6, 15, 11, 0, 0, "+00:00"),     parse_date("1h", true, now)
   end
+
+  def test_time_parsing_24hour
+    now = Time.new(2024, 6, 15, 12, 0, 0, "-05:00")
+    assert_equal Time.new(2024, 6, 15, 1, 34, 0, "-05:00"),     parse_date("1:34", false, now)
+    assert_equal Time.new(2024, 6, 15, 10, 34, 0, "-05:00"),    parse_date("10:34", false, now)
+    assert_equal Time.new(2024, 6, 15, 23, 59, 0, "-05:00"),    parse_date("23:59", false, now)
+    assert_equal Time.new(2024, 6, 15, 0, 0, 0, "-05:00"),      parse_date("0:00", false, now)
+    assert_equal Time.new(2024, 6, 15, 0, 0, 0, "-05:00"),      parse_date("00:00", false, now)
+    assert_equal Time.new(2024, 6, 15, 12, 0, 0, "-05:00"),     parse_date("12:00", false, now)
+  end
+
+  def test_time_parsing_12hour_am_pm
+    now = Time.new(2024, 6, 15, 12, 0, 0, "-05:00")
+    assert_equal Time.new(2024, 6, 15, 0, 34, 0, "-05:00"),     parse_date("0:34a", false, now)
+    assert_equal Time.new(2024, 6, 15, 2, 34, 0, "-05:00"),     parse_date("02:34a", false, now)
+    assert_equal Time.new(2024, 6, 15, 0, 34, 0, "-05:00"),     parse_date("12:34a", false, now)
+    assert_equal Time.new(2024, 6, 15, 23, 34, 0, "-05:00"),    parse_date("11:34p", false, now)
+    assert_equal Time.new(2024, 6, 15, 12, 45, 0, "-05:00"),    parse_date("12:45p", false, now)
+    assert_equal Time.new(2024, 6, 15, 1, 0, 0, "-05:00"),      parse_date("1a", false, now)
+    assert_equal Time.new(2024, 6, 15, 13, 0, 0, "-05:00"),     parse_date("1p", false, now)
+  end
+
+  def test_time_parsing_edge_cases
+    now = Time.new(2024, 6, 15, 12, 0, 0, "-05:00")
+    assert_equal Time.new(2024, 6, 15, 10, 0, 0, "-05:00"),     parse_date("10a", false, now)
+    assert_equal Time.new(2024, 6, 15, 22, 0, 0, "-05:00"),     parse_date("10p", false, now)
+    assert_equal Time.new(2024, 6, 15, 0, 0, 0, "-05:00"),      parse_date("0a", false, now)
+    assert_equal Time.new(2024, 6, 15, 12, 0, 0, "-05:00"),     parse_date("0p", false, now)
+    assert_equal Time.new(2024, 6, 15, 0, 0, 0, "-05:00"),      parse_date("12a", false, now)
+    assert_equal Time.new(2024, 6, 15, 12, 0, 0, "-05:00"),     parse_date("12p", false, now)
+  end
+
+  def test_time_parsing_variations
+    now = Time.new(2024, 6, 15, 12, 0, 0, "-05:00")
+    assert_equal Time.new(2024, 6, 15, 10, 0, 0, "-05:00"),     parse_date("10am", false, now)
+    assert_equal Time.new(2024, 6, 15, 22, 0, 0, "-05:00"),     parse_date("10pm", false, now)
+    assert_equal Time.new(2024, 6, 15, 1, 0, 0, "-05:00"),      parse_date("1AM", false, now)
+    assert_equal Time.new(2024, 6, 15, 13, 0, 0, "-05:00"),     parse_date("1PM", false, now)
+  end
+
+  def test_invalid_time_inputs
+    assert_raises(DateArg::Error) { parse_date("25:00", false) }
+    assert_raises(DateArg::Error) { parse_date("12:60", false) }
+    assert_raises(DateArg::Error) { parse_date("13a", false) }
+    assert_raises(DateArg::Error) { parse_date("13p", false) }
+    assert_raises(DateArg::Error) { parse_date("24:00", false) }
+    assert_raises(DateArg::Error) { parse_date("0:60", false) }
+    assert_raises(DateArg::Error) { parse_date("25p", false) }
+    assert_raises(DateArg::Error) { parse_date("abc:def", false) }
+    assert_raises(DateArg::Error) { parse_date("12:abc", false) }
+    assert_raises(DateArg::Error) { parse_date("12:34x", false) }
+  end
 end

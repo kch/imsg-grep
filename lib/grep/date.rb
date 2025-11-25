@@ -3,6 +3,7 @@ require "time"
 
 module DateArg
   RX_DATE          = /\A(?<year>\d{4})-(?<month>\d{1,2})-(?<day>\d{1,2})(?<time>[ T](?<hour>\d{1,2}):(?<min>\d{1,2})(?::(?<sec>\d{1,2}))?(?<zone>Z|[+-]\d{2}(?::?\d{2})?)?)?\z/i # mix of iso8601 and rfc3339 with some allowances for lazy typists¯\_(ツ)_/¯
+  RX_TIME          = /\A(?:(?<h>0?\d|1[0-2])(?::(?<m>[0-5]\d))?(?<ampm>[ap]m?)|(?<h>[01]?\d|2[0-3]):(?<m>[0-5]\d))\z/i
   RX_REL_TIME_PART = /(\d+)([hMs]|min)/
   RX_REL_DATE_PART = /(\d+)([ywd]|m(?!in))/
   RX_REL_DATE      = /\A-?(#{RX_REL_DATE_PART}|#{RX_REL_TIME_PART})+\z/ # 5y7m4d style (before now); allow optional - in case -23d reads more intuitively than 23d (in the past), but treat both the same
@@ -26,6 +27,13 @@ module DateArg
       return date unless RX_REL_TIME_PART =~ str
       t = Time.new(date.year, date.month, date.day, now.hour, now.min, now.sec, now.strftime("%z"))
       str.scan(RX_REL_TIME_PART).inject(t){ |t, (n, u)| t - n.to_i * { s:1, m:60, h:60*60 }[u[0].downcase.to_sym] }
+    in RX_TIME
+      $~ => h:, m:, ampm:
+      m  = m.to_i
+      h  = h.to_i
+      h  =  0 if ampm =~ /a/i && h == 12
+      h += 12 if ampm =~ /p/i && h < 12
+      Time.new(now.year, now.month, now.day, h, m, 0, now.strftime("%z"))
     else raise ArgumentError
     end
   rescue ArgumentError # from Time/Date.new too
