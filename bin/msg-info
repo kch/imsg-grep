@@ -5,13 +5,13 @@ require_relative '../lib/messages'
 require_relative '../lib/print_query'
 
 def print_message_details(db, msg_id)
-  id_cond = msg_id =~ /-/ ? "guid" : "id"
-  print_query(db, <<~SQL)
+  id_cond = msg_id =~ /-/ ? "orig.guid" : "orig.ROWID"
+  print_query(db, msg_id, <<~SQL)
     SELECT
       -- Core identifiers
       m.message_id,
       m.guid,
-
+      m.utc_time,
       -- -- Timing
       -- m.utc_time,
 
@@ -39,6 +39,7 @@ def print_message_details(db, msg_id)
       m.is_from_me,
       orig.text as text_original,
       m.text,
+      unarchive_string(orig.attributedBody) as text_fresh,
 
       -- Raw message fields
       orig.subject,
@@ -49,21 +50,6 @@ def print_message_details(db, msg_id)
       orig.date_delivered,
       HEX(orig.attributedBody) as attributedBody_hex,
       HEX(orig.payload_data) as payload_data_hex,
-
-      -- Status flags
-      orig.is_delivered,
-      orig.is_finished,
-      orig.is_emote,
-      orig.is_delayed,
-      orig.is_auto_reply,
-      orig.is_prepared,
-      orig.is_read,
-      orig.is_system_message,
-      orig.is_sent,
-      orig.is_forward,
-      orig.is_service_message,
-      orig.is_spam,
-      orig.error,
 
       -- Thread/Reply
       orig.thread_originator_guid,
@@ -80,16 +66,44 @@ def print_message_details(db, msg_id)
       orig.associated_message_guid,
       orig.destination_caller_id,
       orig.balloon_bundle_id,
-      orig.associated_message_type
+      orig.associated_message_type,
+
+      -- Status flags
+      orig.is_delivered,
+      orig.is_finished,
+      orig.is_emote,
+      orig.is_delayed,
+      orig.is_auto_reply,
+      orig.is_prepared,
+      orig.is_read,
+      orig.is_system_message,
+      orig.is_sent,
+      orig.is_forward,
+      orig.is_service_message,
+      orig.is_spam,
+      orig.error
 
     FROM  _imsg.message orig
     LEFT JOIN message_view m ON m.message_id = orig.ROWID
-    WHERE m.#{id_cond} = '#{msg_id}'
+    WHERE #{id_cond} = ?
   SQL
+
+
+  id_cond = msg_id =~ /-/ ? "(SELECT ROWID FROM message WHERE guid = ?)" : "?"
+  Print.query(<<~SQL, msg_id)
+    SELECT a.ROWID, a.filename, a.mime_type, a.uti,
+      m.ROWID as message_id
+    FROM _imsg.attachment a
+    JOIN _imsg.message_attachment_join maj ON a.ROWID = maj.attachment_id
+    JOIN _imsg.message m ON maj.message_id = m.ROWID
+    WHERE m.ROWID IN (#{id_cond})
+  SQL
+
+
 end
 
 if __FILE__ == $0 && ARGV[0]
-  ARGV.each do |arg|
-    print_message_details($db, arg)
+  ARGV.each do |id|
+    print_message_details($db, id)
   end
 end
