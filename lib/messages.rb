@@ -271,5 +271,6 @@ module Messages
       )
     SQL
 
+    return @db
   end
 end
