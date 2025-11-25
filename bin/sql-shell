@@ -6,6 +6,8 @@ require_relative '../lib/print_query'
 require 'readline'
 require 'fileutils'
 
+$db = Messages.init
+
 histfile = "#{ENV['HOME']}/.config/imsg-grep/history"
 FileUtils.mkdir_p File.dirname(histfile)
 Readline::HISTORY.push(*File.readlines(histfile).map(&:chomp)) if File.exist?(histfile)
@@ -13,7 +15,7 @@ Readline::HISTORY.push(*File.readlines(histfile).map(&:chomp)) if File.exist?(hi
 while buf = Readline.readline("sql> ", true)
   break if buf.strip =~ /^(exit|quit)$/i
   begin
-    print_query($db, buf)
+    Print.query(buf)
     File.write(histfile, "#{buf}\n", mode: 'a')
   rescue => e
     puts "Error: #{e.message}"
