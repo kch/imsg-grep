@@ -263,7 +263,7 @@ begin
     link_urls = [payload&.dig(*%w[richLinkMetadata originalURL]), link_url] if link_url
     highlight = [*link_urls&.map{ Regexp.escape it if it }, *highlight_conds].compact
     text = text.gsub(/#{highlight.join(?|)}/) do
-      if link_urls.include?($&) # highlight match text inside link url
+      if link_urls&.include?($&) # highlight match text inside link url
         open, close = R(?|).green.split(?|) # bit of a kludge but works
         open + $&.gsub(/#{highlight_conds.join ?|}/){ close + R($&).bright.green + open } + close
       else
@@ -288,7 +288,7 @@ begin
         Date: time
       }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{R(k.to_s).yellow}: #{R(v).bright.yellow}" }.join("\n")
       out << "\n" << text
-      summary = payload.dig(*%w[ richLinkMetadata summary ])
+      summary = payload&.dig(*%w[ richLinkMetadata summary ])
       out << "\n\n" << R(summary.gsub(/^/, "  ")).cyan if summary
       out << "\n\n"
     end
