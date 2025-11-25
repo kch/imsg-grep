@@ -4,12 +4,8 @@
 
 require "date"
 require "json"
-require "debug"
 require "sqlite3"
 require "rainbow"
-
-require "yaml"
-require "psych/y"
 
 require_relative "../../strop/lib/strop"
 require_relative "../lib/grep/date"
