@@ -129,7 +129,8 @@ begin
     in label: "help"             then puts HELP; exit
     in label: "debug"            then @debug = true
     # in label: "opts"             then puts "Remaining options: " + ((?0..?z).to_a.grep(/\w/) - optlist.flat_map{ it.names.reject{it[1]} }).join(", ")
-    # in label: "opts"             then puts (?0..?z).to_a.grep(/\w/).map{ it + ": " + (optlist[it]&.label || "AVAILABLE") }
+    # in label: "opts"             then puts (?0..?z).to_a.grep(/\w/).map{ it + ": " + (optlist[it]&.label || "") }
+    in label: "opts"             then puts (?0..?z).to_a.grep(/\w/).map{ Rainbow(it).send(optlist[it]&.label ? :red : :bright) }.join(" "); exit
     in arg:                      then add_cond :message, mk_regexp(arg)
     in Sep
     end
