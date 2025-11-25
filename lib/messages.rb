@@ -129,7 +129,6 @@ module Messages
     ################################################################################
     ### Caching ####################################################################
     ################################################################################
-
     @db.execute_batch <<~SQL
       CREATE TABLE IF NOT EXISTS _cache.texts    ( guid TEXT PRIMARY KEY, value TEXT) STRICT;
       CREATE TABLE IF NOT EXISTS _cache.payloads ( guid TEXT PRIMARY KEY, value TEXT) STRICT;
@@ -144,12 +143,18 @@ module Messages
       @cache[:payloads][guid] ||= @cache[:payload_data][guid]&.to_json
     end
 
+    # The `computed` CTE in `message_view` calls these functions which generate the data on demand
+    # and populate a cache for a next run. The CTE joins against that cache, and calls these functions
+    # for rows where the join is empty.
+    # the at_exit block below stores the cache from this run after the program has done its thing.
+
     @db.ƒ(:cache_text)         { |guid, attr| cache_text.(guid, attr) }
     @db.ƒ(:cache_payload_json) { |guid, data| cache_payload.(guid, data) }
 
     end_mark = '\uFFFC\p{Space}'  # \uFFFC is the attributed string object marker
     noallow = Regexp.escape('\|^"<>{}[]') + end_mark
     rx_url = %r(\bhttps?://[^#{noallow}]{4,}?(?=["':;,\.\)]{0,3}(?:[#{end_mark}]|$)))i
+
     @db.ƒ(:cache_link_url) do |guid, data, text, attr|
       next @cache[:links][guid] if @cache[:links][guid]
       text = cache_text.(guid, attr)
@@ -174,7 +179,7 @@ module Messages
             @db.execute <<~SQL
               INSERT INTO _cache.#{table} (guid, value) VALUES #{values}
               ON CONFLICT(guid) DO UPDATE SET value = COALESCE(excluded.value, _cache.#{table}.value)
-              SQL
+            SQL
           end
         end
       end
