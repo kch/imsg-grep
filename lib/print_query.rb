@@ -10,8 +10,8 @@ module Print
   def self.sep(s) = "\e[30m#{s}\e[39m"
   def self.clr = "\e[0m"
 
-  def self.query(q, title: nil, db: $db)
-    table db.execute2(q), title:
+  def self.query(q, *args, title: nil, db: $db)
+    table db.execute2(q, *args), title:
   end
 
   def self.table(table, title: nil)
@@ -77,10 +77,10 @@ module Print
 
 end
 
-def print_query(db, sql)
+def print_query(db, *args, sql)
   puts "\n#{'=' * 80}"
 
-  cols, *rows = db.execute2(sql)
+  cols, *rows = db.execute2(sql, *args)
   width = cols.map(&:length).max
   rows.each do |row|
     row.each_with_index do |val, i|
