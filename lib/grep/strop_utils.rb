@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class Strop::Result
   def standalone(label)
     labels = opts.map(&:label)

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Binary property list (bplist) parser for decoding Apple's binary plist format
 
 require 'set'

@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 # NSKeyedArchive decoder for unpacking Apple's keyed archive format from binary plists
 
 require "json"

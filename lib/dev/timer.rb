@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Simple timer for profiling with lap times and progress bars
 module Timer
   # Initialize timer state

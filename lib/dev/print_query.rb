@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # Query result formatter that prints SQL results in a readable key-value format
 
 require "io/console"

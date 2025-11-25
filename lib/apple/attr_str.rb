@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 # Extract NSString value from unkeyed-archived (typedstream) NSAttributedString
 
 class AttributedStringExtractor
