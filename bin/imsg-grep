@@ -67,7 +67,7 @@ def mk_regexp(pattern)
   flags = [Regexp::IGNORECASE] if case_ == :ignore
   Regexp.new(pattern, *flags)
 rescue RegexpError => e
-  raise OptionError, "Invalid regular expression (#{value}): #{e.message}"
+  raise OptionError, "Invalid regular expression (#{pattern}): #{e.message}"
 end
 
 def add_cond(key, value)
