@@ -159,7 +159,7 @@ CACHE = Hash.new{ |h,guid| h[guid] = { text: nil, payload: nil, payload_json: ni
 def cache_text(guid, attr) = CACHE[guid][:text] ||= AttributedStringExtractor.extract(attr)
 def cache_payload(guid, data)
   CACHE[guid][:payload]      ||= NSKeyedArchive.unarchive(data)
-  CACHE[guid][:payload_json] ||= CACHE[guid][:payload].to_json
+  CACHE[guid][:payload_json] ||= CACHE[guid][:payload]&.to_json
 end
 
 $db.ƒ(:cache_text)         { |guid, attr| cache_text(guid, attr) }
