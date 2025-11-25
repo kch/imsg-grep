@@ -10,9 +10,10 @@ require "rainbow"
 require_relative "../../strop/lib/strop"
 require_relative "../lib/grep/date"
 require_relative "../lib/grep/strop_utils"
+require_relative "../lib/print_query"
+
 require_relative "../lib/messages"
 
-require_relative "../lib/print_query"
 
 include Strop::Exports
 
@@ -121,7 +122,7 @@ begin
     in label: "reverse"          then @reverse = true
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "utc"              then @utc = true
-    in label: "reset"            then reset_cache; exit if (result.map(&:label) - ["reset"]).empty?
+    in label: "reset"            then Messages.reset_cache; exit if (result.map(&:label) - ["reset"]).empty?
     in label: "help"             then puts HELP; exit
     in label: "debug"            then @debug = true
     # in label: "opts"             then puts "Remaining options: " + ((?0..?z).to_a.grep(/\w/) - optlist.flat_map{ it.names.reject{it[1]} }).join(", ")
@@ -221,7 +222,8 @@ begin
   SQL
   IO.popen(['bat', '-l', 'sql'], 'w') { it << sql } if @debug
 
-  found = $db.select_hashes(sql)
+  Messages.init
+  found = Messages.db.select_hashes(sql)
 
 ################################################################################
 ### Massage results ############################################################
