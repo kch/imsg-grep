@@ -125,7 +125,7 @@ begin
     in label: "reverse"          then @reverse = true
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "utc"              then @utc = true
-    in label: "reset"            then reset_cache
+    in label: "reset"            then reset_cache; exit if (result.map(&:label) - ["reset"]).empty?
     in label: "help"             then puts HELP; exit
     in label: "debug"            then @debug = true
     # in label: "opts"             then puts "Remaining options: " + ((?0..?z).to_a.grep(/\w/) - optlist.flat_map{ it.names.reject{it[1]} }).join(", ")
