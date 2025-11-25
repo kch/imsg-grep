@@ -1,3 +1,8 @@
+PATH
+  remote: ../strop
+  specs:
+    strop (0.2.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -41,6 +46,7 @@ DEPENDENCIES
   plist
   rainbow
   sqlite3
+  strop!
 
 BUNDLED WITH
    2.7.2
