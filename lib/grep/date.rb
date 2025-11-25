@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+require "time"
 
 module DateArg
   RX_DATE          = /\A(?<year>\d{4})-(?<month>\d{1,2})-(?<day>\d{1,2})(?<time>[ T](?<hour>\d{1,2}):(?<min>\d{1,2})(?::(?<sec>\d{1,2}))?(?<zone>Z|[+-]\d{2}(?::?\d{2})?)?)?\z/i # mix of iso8601 and rfc3339 with some allowances for lazy typists¯\_(ツ)_/¯
