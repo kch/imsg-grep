@@ -145,21 +145,18 @@ $db.execute <<~SQL
 ### Caching ####################################################################
 ################################################################################
 
-$db.execute <<~SQL
-  CREATE TABLE IF NOT EXISTS _cache.cache (
-    guid TEXT PRIMARY KEY,
-    text TEXT,
-    payload_json JSON,
-    link_url TEXT
-  )
+$db.execute_batch <<~SQL
+  CREATE TABLE IF NOT EXISTS _cache.texts    ( guid TEXT PRIMARY KEY, value TEXT) STRICT;
+  CREATE TABLE IF NOT EXISTS _cache.payloads ( guid TEXT PRIMARY KEY, value TEXT) STRICT;
+  CREATE TABLE IF NOT EXISTS _cache.links    ( guid TEXT PRIMARY KEY, value TEXT) STRICT;
 SQL
 
-CACHE = Hash.new{ |h,guid| h[guid] = { text: nil, payload: nil, payload_json: nil, link_url: nil } }
+CACHE = { texts: {}, payload_data: {}, payloads: {}, links: {} }
 
-def cache_text(guid, attr) = CACHE[guid][:text] ||= AttributedStringExtractor.extract(attr)
+def cache_text(guid, attr) = CACHE[:texts][guid] ||= AttributedStringExtractor.extract(attr)
 def cache_payload(guid, data)
-  CACHE[guid][:payload]      ||= NSKeyedArchive.unarchive(data)
-  CACHE[guid][:payload_json] ||= CACHE[guid][:payload]&.to_json
+  CACHE[:payload_data][guid] = NSKeyedArchive.unarchive(data) unless CACHE[:payload_data].key? guid
+  CACHE[:payloads][guid] ||= CACHE[:payload_data][guid]&.to_json
 end
 
 $db.ƒ(:cache_text)         { |guid, attr| cache_text(guid, attr) }
@@ -169,34 +166,32 @@ end_mark = '\uFFFC\p{Space}'  # \uFFFC is the attributed string object marker
 noallow = Regexp.escape('\|^"<>{}[]') + end_mark
 RX_URL = %r(\bhttps?://[^#{noallow}]{4,}?(?=["':;,\.\)]{0,3}(?:[#{end_mark}]|$)))i
 $db.ƒ(:cache_link_url) do |guid, data, text, attr|
-  next CACHE[guid][:link_url] if CACHE[guid][:link_url]
+  next CACHE[:links][guid] if CACHE[:links][guid]
   text = cache_text(guid, attr)
-  cache_payload(guid, data)
-  payload = CACHE[guid][:payload]
+  cache_payload(guid, data) # force CACHE[:payload_data] to be set
+  payload = CACHE[:payload_data][guid]
 
-  CACHE[guid][:link_url] = \
+  CACHE[:links][guid] = \
     payload&.dig("richLinkMetadata", "URL") ||
     payload&.dig("richLinkMetadata", "originalURL") ||
     (text && text[RX_URL])
 end
 
 at_exit do
-  # puts CACHE.size # debug
   # next # disable saving cache
-  batch_size = 40_000
-  CACHE.each_slice(batch_size) do |batch|
-    values = batch.map do |guid, row|
-      [guid, *row.values_at(:text, :payload_json, :link_url)]
-      .map  {|v| v ? "'#{SQLite3::Database.quote(v)}'" : "NULL" }
-      .then { "(#{it.join(', ')})" }
+  next if CACHE.values.all?(&:empty?)
+  quote = ->v{ v == nil ? "NULL" : "'#{SQLite3::Database.quote v}'" }
+  batch_size = 50_000
+  $db.transaction do
+    CACHE.except(:payload_data).each do |table, rows|
+      rows.each_slice(batch_size) do |rows|
+        values = rows.inject(String.new){|s, (guid, v)| s << "('#{guid}', #{quote[v]})," }.chop!
+        $db.execute <<~SQL
+          INSERT INTO _cache.#{table} (guid, value) VALUES #{values}
+          ON CONFLICT(guid) DO UPDATE SET value = COALESCE(excluded.value, _cache.#{table}.value)
+          SQL
+      end
     end
-    $db.execute <<~SQL
-      INSERT INTO _cache.cache (guid, text, payload_json, link_url) VALUES #{values*?,}
-      ON CONFLICT(guid) DO UPDATE SET
-        text         = COALESCE(excluded.text,         _cache.cache.text),
-        payload_json = COALESCE(excluded.payload_json, _cache.cache.payload_json),
-        link_url     = COALESCE(excluded.link_url,     _cache.cache.link_url)
-      SQL
   end
 end
 
@@ -223,17 +218,18 @@ $db.execute <<~SQL
   computed AS (
     SELECT
       m.ROWID,
-      COALESCE(m.text, x.text,
-        IIF(x.guid IS NULL, cache_text(m.guid, m.attributedBody)))
+      COALESCE(m.text, ct.value, IIF(ct.guid IS NULL AND m.attributedBody IS NOT NULL, cache_text(m.guid, m.attributedBody)))
         as text,
-      COALESCE(x.payload_json,
-        IIF(x.guid IS NULL, cache_payload_json(m.guid, m.payload_data)))
+      COALESCE(cp.value, IIF(cp.guid IS NULL AND m.payload_data IS NOT NULL, cache_payload_json(m.guid, m.payload_data)))
         as payload_json,
-      COALESCE(x.link_url,
-        IIF(x.guid IS NULL, cache_link_url(m.guid, m.payload_data, m.text, m.attributedBody)))
+      COALESCE(cl.value, IIF(cl.guid IS NULL AND (
+          m.payload_data IS NOT NULL OR instr(m.text, 'http') OR instr(m.attributedBody, 'http')
+        ), cache_link_url(m.guid, m.payload_data, m.text, m.attributedBody)))
         as link_url
     FROM message m
-    LEFT JOIN _cache.cache x ON m.guid = x.guid
+    LEFT JOIN _cache.texts    ct ON m.guid = ct.guid
+    LEFT JOIN _cache.payloads cp ON m.guid = cp.guid
+    LEFT JOIN _cache.links    cl ON m.guid = cl.guid
   )
   SELECT
     m.ROWID                                                             as message_id,
