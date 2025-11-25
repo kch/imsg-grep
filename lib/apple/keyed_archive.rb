@@ -5,7 +5,7 @@ require "json"
 require "base64"
 require_relative "bplist"
 
-class NSKeyedArchive
+class KeyedArchive
   attr_reader :data
 
   class BinaryString < String
@@ -98,6 +98,6 @@ end
 
 if __FILE__ == $0
   input = $stdin.read
-  out = NSKeyedArchive.unarchive(input)
+  out = KeyedArchive.unarchive(input)
   puts JSON.pretty_generate(out)
 end

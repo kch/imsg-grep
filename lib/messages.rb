@@ -4,8 +4,8 @@
 
 require 'sqlite3'
 require 'fileutils'
-require_relative 'keyed_archive'
-require_relative 'attr_str'
+require_relative 'apple/keyed_archive'
+require_relative 'apple/attr_str'
 
 module Messages
   APPLE_EPOCH = 978307200
@@ -39,7 +39,7 @@ module Messages
 
     regex_cache = Hash.new { |h,src| h[src] = Regexp.new(src) }
     @db.ƒ(:regexp)           { |rx, text| regex_cache[rx].match?(text) ? 1 : 0 }
-    @db.ƒ(:unarchive_keyed)  { |data| NSKeyedArchive.unarchive(data).to_json if data }
+    @db.ƒ(:unarchive_keyed)  { |data| KeyedArchive.unarchive(data).to_json if data }
     @db.ƒ(:unarchive_string) { |data| AttributedStringExtractor.extract(data) if data }
 
     ################################################################################
@@ -139,7 +139,7 @@ module Messages
 
     cache_text = ->(guid, attr) { @cache[:texts][guid] ||= AttributedStringExtractor.extract(attr) }
     cache_payload = ->(guid, data) do
-      @cache[:payload_data][guid] = NSKeyedArchive.unarchive(data) unless @cache[:payload_data].key? guid
+      @cache[:payload_data][guid] = KeyedArchive.unarchive(data) unless @cache[:payload_data].key? guid
       @cache[:payloads][guid] ||= @cache[:payload_data][guid]&.to_json
     end
 

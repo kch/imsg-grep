@@ -2,7 +2,7 @@
 # Interactive SQL shell for querying the iMessage database with readline history
 
 require_relative '../lib/messages'
-require_relative '../lib/print_query'
+require_relative '../lib/dev/print_query'
 require 'readline'
 require 'fileutils'
 

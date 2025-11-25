@@ -2,9 +2,9 @@
 
 require 'fileutils'
 require 'sqlite3'
-require_relative '../../lib/attr_str'
-require_relative '../../lib/keyed_archive'
-require_relative '../../lib/print_query'
+require_relative '../../lib/apple/attr_str'
+require_relative '../../lib/apple/keyed_archive'
+require_relative '../../lib/dev/print_query'
 
 def print_table(...) = Print.table(...)
 
@@ -14,7 +14,7 @@ db.execute "PRAGMA query_only = ON"
 db.execute "ATTACH DATABASE '#{addy_db}' AS _addy"
 def db.ƒ(f, &) = define_function_with_flags(f.to_s, SQLite3::Constants::TextRep::UTF8 | SQLite3::Constants::TextRep::DETERMINISTIC, &)
 db.ƒ(:normalize_phone)  { |text| text =~ /[^\p{Punct}\p{Space}\d+]/ ? text : text.delete("^0-9+") } # remove punctuation from normal phones but keep weird phones intact
-db.ƒ(:unarchive_keyed)  { |data| NSKeyedArchive.unarchive(data).to_json if data }
+db.ƒ(:unarchive_keyed)  { |data| KeyedArchive.unarchive(data).to_json if data }
 db.ƒ(:unarchive_string) { |data| AttributedStringExtractor.extract(data) if data }
 
 

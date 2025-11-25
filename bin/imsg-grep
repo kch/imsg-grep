@@ -10,7 +10,7 @@ require "rainbow"
 require_relative "../../strop/lib/strop"
 require_relative "../lib/grep/date"
 require_relative "../lib/grep/strop_utils"
-require_relative "../lib/print_query"
+require_relative "../lib/dev/print_query"
 
 require_relative "../lib/messages"
 
