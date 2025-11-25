@@ -215,6 +215,7 @@ begin
       chat_name,
       text,
       link_url,
+      utc_time,
       #{time_col} as time
     FROM message_view
     #{'WHERE ' + sql_cond unless sql_cond.empty?}
