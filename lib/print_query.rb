@@ -10,7 +10,7 @@ module Print
   def self.sep(s) = "\e[30m#{s}\e[39m"
   def self.clr = "\e[0m"
 
-  def self.query(q, *args, title: nil, db: $db)
+  def self.query(q, *args, title: nil, db: Messages.db)
     table db.execute2(q, *args), title:
   end
 
