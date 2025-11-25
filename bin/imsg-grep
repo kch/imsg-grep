@@ -207,7 +207,7 @@ begin
   sql = <<~SQL
     SELECT
       -- message_id,
-      #{'payload_json,' if @payload}
+      payload_json,
       guid,
       has_attachments,
       sender_name as "from",
@@ -247,7 +247,7 @@ begin
   def R(...) = Rainbow(...)
 
   for msg in found
-    msg => guid:, from:, to:, chat_name:, text:, link_url:, time:, is_group_chat:, has_attachments:
+    msg => guid:, from:, to:, chat_name:, text:, link_url:, time:, is_group_chat:, has_attachments:, payload:
 
     if @link_capture
       text = link_url
@@ -260,11 +260,12 @@ begin
     text = link_url if text.empty? && link_url
 
     highlight_conds = @conditions[:message]
-    highlight = [(Regexp.escape(link_url) if link_url), *highlight_conds].compact
+    link_urls = [payload&.dig(*%w[richLinkMetadata originalURL]), link_url] if link_url
+    highlight = [*link_urls&.map{ Regexp.escape it if it }, *highlight_conds].compact
     text = text.gsub(/#{highlight.join(?|)}/) do
-      if link_url == $& # highlight match text inside link url
+      if link_urls.include?($&) # highlight match text inside link url
         open, close = R(?|).green.split(?|) # bit of a kludge but works
-        open + link_url.gsub(/#{highlight_conds.join ?|}/){ close + R($&).bright.green + open } + close
+        open + $&.gsub(/#{highlight_conds.join ?|}/){ close + R($&).bright.green + open } + close
       else
         R($&).magenta.bright
       end
