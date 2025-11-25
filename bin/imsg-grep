@@ -284,7 +284,7 @@ begin
         To: (to*', ' unless is_group_chat),
         With: (to*', ' if is_group_chat),
         Chat: chat_name
-        }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{R(k.to_s).yellow}: #{R(v).bright.yellow}"}.join("\n")
+      }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{R(k.to_s).yellow}: #{R(v).bright.yellow}" }.join("\n")
       out << "\n" << text << "\n\n"
     end
 
