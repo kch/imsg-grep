@@ -58,7 +58,8 @@ def parse_capture(str)
   end
 end
 
-# LIKE is too much of a mess. ASCII-insensitive, only sensitive option is GLOB. Regexp everything at some perf cost.
+# LIKE is too much of a mess. ASCII-insensitive, only sensitive option is GLOB.
+# We'll be regexing everything, even literals, at maybe some perf cost.
 def mk_regexp(pattern)
   case_ = @case
   case_ = /\p{Upper}/ =~ pattern ? :sensitive : :ignore if case_ == :smart
@@ -82,10 +83,6 @@ begin
   optlist << Optdecl[:D, :debug]
   optlist << Optdecl[:opts]
   result = Strop.parse optlist
-  # result = Strop.parse! HELP
-  # puts optlist
-  # puts optlist.to_s(:case)
-  # puts result.to_s
 
   capture_opts = %w[ capture ]
   text_opts    = %w[ message-only one-line ]
@@ -133,8 +130,6 @@ begin
     in arg:                      then add_cond :message, mk_regexp(arg)
     in Sep
     end
-    # o.bool   "-D", "--debug ID",         "Print way too much abt msg with id"
-    # -q, silent, 0 or 1 exit if match
   end
 
 ################################################################################
