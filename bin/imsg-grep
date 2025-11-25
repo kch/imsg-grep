@@ -80,8 +80,8 @@ end
 begin
   HELP = IO.read(__dir__ + "/../HELP").gsub("PROG", File.basename($0))
   optlist = Strop.parse_help HELP
-  optlist << Optdecl[:D, :debug]
-  optlist << Optdecl[:opts]
+  optlist << Optdecl[:D, :debug] # hidden opt
+  optlist << Optdecl[:opts] # dev opt
   result = Strop.parse optlist
 
   capture_opts = %w[ capture ]
@@ -124,11 +124,13 @@ begin
     in label: "reset"            then Messages.reset_cache; exit if (result.map(&:label) - ["reset"]).empty?
     in label: "help"             then puts HELP; exit
     in label: "debug"            then @debug = true
+    in arg:                      then add_cond :message, mk_regexp(arg)
+    in Sep # ignore, above `arg:` will handle .rest just fine
+
+    # dev stuff: Used to see what options are still available
     # in label: "opts"             then puts "Remaining options: " + ((?0..?z).to_a.grep(/\w/) - optlist.flat_map{ it.names.reject{it[1]} }).join(", ")
     # in label: "opts"             then puts (?0..?z).to_a.grep(/\w/).map{ it + ": " + (optlist[it]&.label || "") }
     in label: "opts"             then puts (?0..?z).to_a.grep(/\w/).map{ Rainbow(it).send(optlist[it]&.label ? :red : :bright) }.join(" "); exit
-    in arg:                      then add_cond :message, mk_regexp(arg)
-    in Sep
     end
   end
 
