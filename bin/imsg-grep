@@ -77,7 +77,7 @@ end
 ### begin option parsing #######################################################
 ################################################################################
 begin
-  HELP = DATA.read.gsub("PROG", File.basename($0))
+  HELP = IO.read(__dir__ + "/../HELP").gsub("PROG", File.basename($0))
   optlist = Strop.parse_help HELP
   optlist << Optdecl[:D, :debug]
   optlist << Optdecl[:opts]
@@ -301,101 +301,3 @@ rescue OptionError => e
   $stderr.puts "See --help for usage information"
   exit 1
 end
-
-# MISSING:
-# -a
-#     -R, --reset            Clear and rebuild cache
-
-# Output formatting:
-#     -m, --message-only     Only print message text
-#     -1, --one-line         [from -> to] message, newlines removed
-#     -j, --json             JSON output
-#     -p, --payload          Include payload in JSON
-#     -V, --reverse          Reverse order of output (oldest first)
-
-
-__END__
-Usage: PROG [options ...] [PATTERN ...]
-
-Date filtering:
-    -d, --since DATE       Match after DATE
-    -u, --until DATE       Match before DATE
-    -Z, --utc              Parse and print dates as UTC
-
-Participant filtering:
-    -t, --to CONTACT       Match recipients
-    -f, --from CONTACT     Match sender
-    -w, --with CONTACT     Match sender or recipients
-    -c, --chat PATTERN     Match chat name
-
-Match handling:
-    -n, --max=NUM          Only print top NUM messages
-    -C, --smart-case       Case-sensitive only when pattern has uppercase
-                           letters. (default, turn off with -i or -I)
-    -i, --ignore-case      Case-insensitive matches
-    -I, --no-ignore-case   Case-sensitive matches
-    -l, --literal          Literal string match, no regex
-    -x, --regexp           Regexp match (default, turn off with -l)
-    -a, --all              Allow calling with no conditions
-                           (will print every message unless -n)
-
-Message filtering:
-    -s, --sent             Only match sent
-    -r, --received         Only match received
-    -L, --links[=URL]      Find links
-    -Y, --youtube          Find youtube links
-    -S, --soundcloud       Find soundcloud links
-    -X, --twitter          Find twitter links
-
-Output formatting:
-    --[no-]color           Enable/disable color output
-                           (default: yes if tty)
-    -o, --capture [EXPR]   Print only $& or EXPR
-    -m, --message-only     Only print message text
-    -1, --one-line         [from -> to] message, newlines removed
-    -j, --json             JSON output
-    -P, --payload          Include payload in JSON
-    -V, --reverse          Reverse sort order (oldest first)
-
-Other:
-    -R, --reset            Clear and rebuild cache
-    -h, --help             Show this help
-
-
--- TODO: split marker. -h shows above, --help adds below.
-
-DATE must be in ISO8601 format. Time and TZ optional.
-You can use gdate for calculations: -d `gdate -Im -d -7days`
-Dates are consdered local unless -Z or TZ component present in string.
-
-PATTERN is a regular expression (onigmo).
-Case-insensitive by default, unless upcase letters present.
-Can force senitivity with '(?-i:pattern)'
-Use -l to match literal string.
-
-CONTACT works the same as pattern but matches a contact.
-You can give part of a name, phone number, email. It'll look up
-the full contact details in the address book and match against every
-handle available for every matched contact.
-
---capture EXPR
-When omitted, the entire match is presented.
-When a number, that capture group is presented.
-When a format string: "foo $1 bar $2", interpolates the captures.
--o same as -o"$&"
--o1 same as -o"$1"
---o "$3, $2"
-Only works if single pattern given
-
--l,-x only affect subsequent patterns.
-
-can use -x -to a.aa -l -to bbbb
-
--f a -f b is OR, ie, same opts combine as or. diff opts genereally combine as AND
-
-
-Examples:
-  PROG pattern                   # Basic search
-  PROG -f Alice pattern          # From Alice
-  PROG -d 2024-01-01 pattern    # Since date
-  PROG -o '1,2' '(\w+):(\d+)'   # Capture groups
