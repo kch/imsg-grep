@@ -193,9 +193,9 @@ at_exit do
     $db.execute <<~SQL
       INSERT INTO _cache.cache (guid, text, payload_json, link_url) VALUES #{values*?,}
       ON CONFLICT(guid) DO UPDATE SET
-        text = COALESCE(_cache.cache.text, excluded.text),
-        payload_json = COALESCE(_cache.cache.payload_json, excluded.payload_json),
-        link_url     = COALESCE(_cache.cache.link_url, excluded.link_url)
+        text         = COALESCE(excluded.text,         _cache.cache.text),
+        payload_json = COALESCE(excluded.payload_json, _cache.cache.payload_json),
+        link_url     = COALESCE(excluded.link_url,     _cache.cache.link_url)
       SQL
   end
 end
@@ -233,7 +233,7 @@ $db.execute <<~SQL
         IIF(x.guid IS NULL, cache_link_url(m.guid, m.payload_data, m.text, m.attributedBody)))
         as link_url
     FROM message m
-    LEFT JOIN cache x ON m.guid = x.guid
+    LEFT JOIN _cache.cache x ON m.guid = x.guid
   )
   SELECT
     m.ROWID                                                             as message_id,
