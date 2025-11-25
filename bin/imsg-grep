@@ -349,7 +349,7 @@ Output formatting:
     -m, --message-only     Only print message text
     -1, --one-line         [from -> to] message, newlines removed
     -j, --json             JSON output
-    -p, --payload          Include payload in JSON
+    -P, --payload          Include payload in JSON
     -V, --reverse          Reverse sort order (oldest first)
 
 Other:
