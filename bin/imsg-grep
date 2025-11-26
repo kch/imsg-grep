@@ -108,7 +108,7 @@ begin
     in label: "no-ignore-case"   then @case = :sensitive
     in label: "literal"          then @mode = :literal
     in label: "regexp"           then @mode = :regexp
-    in label: "exact"            then @exact = true
+    in label: "exact"            then @exact = opt
     in label: "max", value:      then @limit = parse_p_int(value); @allow_all = true
     in label: "all"              then @allow_all = true
     in label: "sent"             then add_cond :from_me, true
@@ -133,7 +133,10 @@ begin
       Messages.reset_cache
       exit if (result.map(&:label) - ["reset"]).empty? # exit if opt used alone
     in arg:
-      (@exact = false; warn "dropped #{result[:exact]._name} used before message pattern.") if @exact
+      if @exact
+        warn "dropped #{@exact._name} used before message pattern."
+        @exact = false
+      end
       add_cond :message, mk_regexp(arg)
     in Sep # ignore, above `arg:` will handle .rest just fine
 
