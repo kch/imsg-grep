@@ -305,7 +305,9 @@ begin
         Date: time
       }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{R(k.to_s).yellow}: #{R(v).bright.yellow}" }.join("\n")
       out << "\n" << text
+      title   = payload&.dig(*%w[ richLinkMetadata title ])
       summary = payload&.dig(*%w[ richLinkMetadata summary ])
+      out << "\n\n" << R(title.gsub(/^/, "  ")).cyan.bright if title
       out << "\n\n" << R(summary.gsub(/^/, "  ")).cyan if summary
       out << "\n\n"
     end
