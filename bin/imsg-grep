@@ -224,7 +224,7 @@ begin
 
   sql_cond = @conditions.filter_map do |key, conds|
     next if conds.empty?
-    conds.map! do |value|
+    conds = conds.map do |value|
       case [key, value]
       in :since,   _           then date_cmp(:>=, value)
       in :until,   _           then date_cmp(:<=, value)
