@@ -1,17 +1,12 @@
 source "https://rubygems.org"
 
-gem "base64" # builtin
+gem "base64"
+gem "io-console"
 gem "sqlite3"
 gem "rainbow"
-
-if File.directory?("../strop")
-  gem "strop", path: "../strop"
-else
-  gem "strop"
-end
+gem "strop", **({path: "../strop"} if File.directory? "../strop") # use local if we gots it
 
 group :development do
-  gem "debug"    # builtin
-  gem "minitest" # builtin
-  gem "plist"
+  gem "debug"
+  gem "minitest"
 end
