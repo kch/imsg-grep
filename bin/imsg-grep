@@ -34,7 +34,7 @@ def warn(s) = $stderr.puts("Warning: #{s}")
 def parse_date(str, utc = @utc)
   DateArg.parse(str, utc)
 rescue DateArg::Error
-  raise OptionError, "Invalid date #{str}; Use YYYY-MM-DD, or relative dates: 1y4m2d; See --help for details"
+  raise OptionError, "Invalid date #{str}; Use YYYY-MM-DD, or relative dates: 1y4m2d; See --help-dates"
 end
 
 def date_cmp(op, dt)
