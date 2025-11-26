@@ -21,6 +21,7 @@ include Strop::Exports
 
 @case = :smart
 @mode = :regexp
+@exact = false
 @conditions = Hash.new{ |h,k| h[k] = [] }
 @utc = false
 
@@ -65,6 +66,7 @@ def mk_regexp(pattern)
   case_ = @case
   case_ = /\p{Upper}/ =~ pattern ? :sensitive : :ignore if case_ == :smart
   pattern = Regexp.escape(pattern) if @mode == :literal
+  pattern, @exact = "\\A#{pattern}\\z", false if @exact
   flags = [Regexp::IGNORECASE] if case_ == :ignore
   Regexp.new(pattern, *flags)
 rescue RegexpError => e
@@ -106,6 +108,7 @@ begin
     in label: "no-ignore-case"   then @case = :sensitive
     in label: "literal"          then @mode = :literal
     in label: "regexp"           then @mode = :regexp
+    in label: "exact"            then @exact = true
     in label: "max", value:      then @limit = parse_p_int(value); @allow_all = true
     in label: "all"              then @allow_all = true
     in label: "sent"             then add_cond :from_me, true
@@ -123,11 +126,15 @@ begin
     in label: "reverse"          then @reverse = true
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "utc"              then @utc = true
-    in label: "reset"            then Messages.reset_cache; exit if (result.map(&:label) - ["reset"]).empty?
     in label: "help"             then puts HELP; exit
     in label: "help-dates"       then puts read_base["HELP_DATES"]; exit
     in label: "debug"            then @debug = true
-    in arg:                      then add_cond :message, mk_regexp(arg)
+    in label: "reset"
+      Messages.reset_cache
+      exit if (result.map(&:label) - ["reset"]).empty? # exit if opt used alone
+    in arg:
+      (@exact = false; warn "dropped #{result[:exact]._name} used before message pattern.") if @exact
+      add_cond :message, mk_regexp(arg)
     in Sep # ignore, above `arg:` will handle .rest just fine
 
     # dev stuff: Used to see what options are still available

@@ -19,6 +19,9 @@ Match handling:
     -I, --no-ignore-case   Case-sensitive matches
     -l, --literal          Literal string match, no regex
     -x, --regexp           Regexp match (default, turn off with -l)
+    -E, --exact            Match full string only
+                           Affects next participant filter only
+                           No effect on message patterns
 
 Message filtering:
     -s, --sent             Only match sent
