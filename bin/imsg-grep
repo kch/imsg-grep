@@ -8,6 +8,7 @@ require "date"
 require "json"
 require "sqlite3"
 require "rainbow"
+require "io/console"
 require "strop"
 
 require_relative "../lib/grep/date"
@@ -27,6 +28,22 @@ include Strop::Exports
 @conditions = Hash.new{ |h,k| h[k] = [] }
 
 ### tiny helpers
+
+# wrap and indent text, respecting SGR sequences; only if tty
+def wrap(s, indent=0, maxw = IO.console.winsize[1], disable: !$stdout.tty?)
+  return s if disable
+  sgr = /\e\[[\d;]*m/
+  pad = " " * indent
+  s.lines.map(&:chomp).each_with_object([]) do |line, acc|
+    until line.empty?
+      break acc << pad+line if line =~ %r[^#{sgr}*https?://\S+\z] # don't wrap link lines
+      w = maxw - indent
+      line.scan(sgr) { $~.begin(0) > w ? break : w += it.bytesize } # increase w to account for SGR
+      ix = line.rindex(" ", w) || w-1 if line.size > w              # find last space before w, or use w, or nil when short enough
+      acc << pad + line.slice!(..ix).chomp(" ")
+    end
+  end*?\n
+end
 
 def warn(s) = $stderr.puts("Warning: #{s}")
 
@@ -300,6 +317,8 @@ begin
       out = text
     else
       nn = "\n\n"
+      title   = payload&.dig(*%w[ richLinkMetadata title ])
+      summary = payload&.dig(*%w[ richLinkMetadata summary ])
       out = {
         GUID: (guid if @debug),
         From: from,
@@ -308,11 +327,9 @@ begin
         Chat: chat_name,
         Date: time
       }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{R(k.to_s).yellow}: #{R(v).bright.yellow}" }.join("\n")
-      out << nn << text
-      title   = payload&.dig(*%w[ richLinkMetadata title ])
-      summary = payload&.dig(*%w[ richLinkMetadata summary ])
-      out << nn << R(title.gsub(/^/, "  ")).cyan.bright if title
-      out << nn << R(summary.gsub(/^/, "  ")).cyan if summary
+      out << nn << wrap(text, 2)
+      out << nn << R(wrap(title, 2)).cyan.bright if title
+      out << nn << R(wrap(summary, 2)).cyan if summary
       out << nn
     end
 
