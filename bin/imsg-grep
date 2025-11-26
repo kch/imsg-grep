@@ -197,9 +197,9 @@ begin
   # + require mag pattern for -o otherwise
   # + warn -o with multiple mag patterns
   if @capture
-    *pats, @capture_rx = @conditions[:message]
-    @link_capture = !@capture_rx && @capture == '\0' && @conditions[:links].any? # no msg pats & argless -o & -L or friends
-    raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_rx || @link_capture
+    *pats, @capture_rx = @conditions[:message]                                           # take last pattern for capture
+    @capture_rx = :link if !@capture_rx && @capture == '\0' && @conditions[:links].any?  # no msg pats & argless -o & -L or friends
+    raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_rx
     warn "#{result[:capture]._name} used with multiple message patterns. Will use last given" unless pats.empty?
   end
 
@@ -291,7 +291,7 @@ begin
   for msg in found
     msg => guid:, from:, to:, chat_name:, text:, link_url:, time:, is_group_chat:, has_attachments:, payload:
 
-    if @link_capture
+    if @capture_rx == :link
       text = link_url
     elsif @capture
       match = text.match @capture_rx
