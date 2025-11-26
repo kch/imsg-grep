@@ -291,15 +291,15 @@ begin
   for msg in found
     msg => guid:, from:, to:, chat_name:, text:, link_url:, time:, is_group_chat:, has_attachments:, payload:
 
+    text = text.to_s
+    text = link_url if text.empty? && link_url
+
     if @capture_rx == :link
       text = link_url
     elsif @capture
       match = text.match @capture_rx
       text = @capture.gsub(/\\(\d)/){ match[$1.to_i] }
     end
-
-    text = text.to_s
-    text = link_url if text.empty? && link_url
 
     highlight_conds = @conditions[:message]
     link_urls = [payload&.dig(*%w[richLinkMetadata originalURL]), link_url] if link_url
