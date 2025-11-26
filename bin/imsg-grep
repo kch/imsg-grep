@@ -29,6 +29,8 @@ include Strop::Exports
 
 ### tiny helpers
 
+def consume(ivarname) = instance_variable_get(ivarname).tap{ instance_variable_set(ivarname, false) }
+
 # wrap and indent text, respecting SGR sequences; only if tty
 def wrap(s, indent=0, maxw = IO.console.winsize[1], disable: !$stdout.tty?)
   return s if disable
@@ -80,7 +82,7 @@ def mk_regexp(pattern)
   case_ = @case
   case_ = /\p{Upper}/ =~ pattern ? :sensitive : :ignore if case_ == :smart
   pattern = Regexp.escape(pattern) if @mode == :literal
-  pattern, @exact = "\\A#{pattern}\\z", false if @exact
+  pattern = "\\A#{pattern}\\z" if consume :@exact
   flags = [Regexp::IGNORECASE] if case_ == :ignore
   Regexp.new(pattern, *flags)
 rescue RegexpError => e
@@ -147,10 +149,7 @@ begin
       Messages.reset_cache
       exit if (result.map(&:label) - ["reset"]).empty? # exit if opt used alone
     in arg:
-      if @exact
-        warn "dropped #{@exact._name} used before message pattern."
-        @exact = false
-      end
+      eopt = consume :@exact and warn "dropped #{eopt._name} used before message pattern."
       add_cond :message, mk_regexp(arg)
     in Sep # ignore, above `arg:` will handle .rest just fine
 
