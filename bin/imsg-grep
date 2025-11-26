@@ -184,6 +184,7 @@ begin
   d0, d1 = [d0, d1].compact.map(&:to_date) if [d0, d1].map(&:class).uniq.size > 1
   raise OptionError, "Since date must be before until date" if d0 && d1 && d0 > d1
 
+  # ignore request for all links when already getting more specific site links
   # -L(noarg) + -[YSX]|Larg, drops -L
   links = @conditions[:links]
   if links.include?(true) && links.uniq.size > 1
@@ -192,7 +193,7 @@ begin
     warn "ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
   end
 
-  # allow -o + no msg pattern if links (capture link)
+  # allow -o + no msg pattern if links (capture whole link instead)
   # + require mag pattern for -o otherwise
   # + warn -o with multiple mag patterns
   if @capture
