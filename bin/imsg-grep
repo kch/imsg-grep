@@ -241,7 +241,7 @@ begin
     ORDER BY unix_time #{@reverse ? 'ASC' : 'DESC'}
     #{limit}
   SQL
-  IO.popen(['bat', '-l', 'sql'], 'w') { it << sql } if @debug
+  IO.popen(['bat', '-l', 'sql'], 'w', out: :err) { it << sql } if @debug
 
   Messages.init
   found = Messages.db.select_hashes(sql)
