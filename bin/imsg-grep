@@ -80,7 +80,7 @@ end
 begin
   read_base = ->f{ IO.read(__dir__ + "/../#{f}") }
   HELP = read_base["HELP"].gsub("PROG", File.basename($0))
-  optlist = Strop.parse_help HELP
+  optlist = Strop.parse_help HELP[/.*~~/m]
   optlist << Optdecl[:D, :debug] # hidden opt
   optlist << Optdecl[:opts] # dev opt
   result = Strop.parse optlist
