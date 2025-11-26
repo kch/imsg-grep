@@ -141,9 +141,9 @@ module Messages
     ### Caching ####################################################################
     ################################################################################
     @db.execute_batch <<~SQL
-      CREATE TABLE IF NOT EXISTS _cache.texts    ( guid TEXT PRIMARY KEY, value TEXT) STRICT;
-      CREATE TABLE IF NOT EXISTS _cache.payloads ( guid TEXT PRIMARY KEY, value TEXT) STRICT;
-      CREATE TABLE IF NOT EXISTS _cache.links    ( guid TEXT PRIMARY KEY, value TEXT) STRICT;
+      CREATE TABLE IF NOT EXISTS _cache.texts    (guid TEXT PRIMARY KEY, value TEXT) STRICT;
+      CREATE TABLE IF NOT EXISTS _cache.payloads (guid TEXT PRIMARY KEY, value TEXT) STRICT;
+      CREATE TABLE IF NOT EXISTS _cache.links    (guid TEXT PRIMARY KEY, value TEXT) STRICT;
     SQL
 
     @cache = { texts: {}, payload_data: {}, payloads: {}, links: {} }
