@@ -19,8 +19,6 @@ Match handling:
     -I, --no-ignore-case   Case-sensitive matches
     -l, --literal          Literal string match, no regex
     -x, --regexp           Regexp match (default, turn off with -l)
-    -a, --all              Allow calling with no conditions
-                           (will print every message unless -n)
 
 Message filtering:
     -s, --sent             Only match sent
@@ -29,6 +27,8 @@ Message filtering:
     -Y, --youtube          Find youtube links
     -S, --soundcloud       Find soundcloud links
     -X, --twitter          Find twitter links
+    -a, --all              Allow calling with no conditions
+                           (will print every message unless -n)
 
 Output formatting:
     --[no-]color           Enable/disable color output
