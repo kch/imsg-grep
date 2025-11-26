@@ -145,12 +145,12 @@ begin
     in label: "help"             then puts HELP; exit
     in label: "help-dates"       then puts read_base["HELP_DATES"]; exit
     in label: "debug"            then @debug = true
-    in label: "reset"
-      Messages.reset_cache
-      exit if (result.map(&:label) - ["reset"]).empty? # exit if opt used alone
     in arg:
       eopt = consume :@exact and warn "dropped #{eopt._name} used before message pattern."
       add_cond :message, mk_regexp(arg)
+    in label: "reset"
+      Messages.reset_cache
+      exit if (result.opts.map(&:label) - ["reset"]).empty? # exit if opt used alone
     in Sep # ignore, above `arg:` will handle .rest just fine
 
     # dev stuff: Used to see what options are still available
