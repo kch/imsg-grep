@@ -110,6 +110,7 @@ begin
   result.exclusive json_opts, text_opts
   result.exclusive json_opts, capture_opts
   result.exclusive "sent", "received"
+  result.compact_singles! %w[ max capture since until ]
 
   for opt in result
     case opt
@@ -173,15 +174,12 @@ begin
 ### checking conflicting options ###############################################
 ################################################################################
 
-  # find date conflicts, multiple dates + since > until
-  d0, d1 = @conditions.values_at(:since, :until).map{it.uniq.sort}
-  warn "multiple since dates given. Most recent wins"  if d0.size > 1
-  warn "multiple until dates given. Least recent wins" if d1.size > 1
-  d0 = d0.last
-  d1 = d1.first
-  # Time+Date would fail compare below, so we lose precision to make it work
-  # these values are not used other than for this check
+  # find date conflicts: since > until
+  # Time<=>Date would fail compare below, so we lose precision to make it work (
+  # in most cases, without doing a lot of work. Worst case, empty results.
+  # fine to convert as these values are only use for this check
   d0, d1 = [d0, d1].compact.map(&:to_date) if [d0, d1].map(&:class).uniq.size > 1
+  d0, d1 = @conditions.values_at(:since, :until).map(&:last)
   raise OptionError, "Since date must be before until date" if d0 && d1 && d0 > d1
 
   # ignore request for all links when already getting more specific site links
