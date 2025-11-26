@@ -304,7 +304,7 @@ begin
   end
 
 rescue OptionError => e
-  $stderr.puts e.message
+  $stderr.puts "Error: " + e.message
   $stderr.puts "See --help for usage information"
   exit 1
 end
