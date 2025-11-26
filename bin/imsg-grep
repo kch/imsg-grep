@@ -258,6 +258,7 @@ begin
   end
 
   if @json
+    found.each{ it.delete(:payload) unless @payload }
     puts JSON.pretty_generate found
     exit
   end
