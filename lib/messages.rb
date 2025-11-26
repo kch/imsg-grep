@@ -67,12 +67,12 @@ module Messages
       )
       SELECT DISTINCT
         r.Z_PK   as contact_id,
-        ch.ROWID as handle_id,
+        mh.ROWID as handle_id,
         h.handle as handle,
         (r.ZCONTAINERWHERECONTACTISME IS NOT NULL) as is_me
       FROM _addy.ZABCDRECORD r
       JOIN handles h ON h.contact_id = r.Z_PK
-      JOIN _imsg.handle ch ON ch.id = h.handle -- only take handles that exist in _imsg
+      JOIN _imsg.handle mh ON mh.id = h.handle -- only take handles that exist in _imsg
     SQL
 
     @db.ƒ(:computed_name) do |first, maiden, middle, last, nick, org|
