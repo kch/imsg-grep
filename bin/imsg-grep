@@ -19,11 +19,14 @@ require_relative "../lib/messages"
 
 include Strop::Exports
 
+### initial values and defaults
 @case = :smart
 @mode = :regexp
 @exact = false
-@conditions = Hash.new{ |h,k| h[k] = [] }
 @utc = false
+@conditions = Hash.new{ |h,k| h[k] = [] }
+
+### tiny helpers
 
 def warn(s) = $stderr.puts("Warning: #{s}")
 
@@ -37,14 +40,6 @@ def parse_date(str, utc = @utc)
   DateArg.parse(str, utc)
 rescue DateArg::Error
   raise OptionError, "Invalid date #{str}; Use YYYY-MM-DD, or relative dates: 1y4m2d; See --help-dates"
-end
-
-def date_cmp(op, dt)
-  case [dt, @utc]
-  in Date, true  then "utc_date   #{op} '#{dt.strftime('%Y-%m-%d')}'"
-  in Date, false then "local_date #{op} '#{dt.strftime('%Y-%m-%d')}'"
-  in Time, _     then "unix_time  #{op} #{dt.to_i}"
-  end
 end
 
 def parse_p_int(str)
@@ -191,6 +186,14 @@ begin
 ################################################################################
 ### build sql query ############################################################
 ################################################################################
+
+  def date_cmp(op, dt)
+    case [dt, @utc]
+    in Date, true  then "utc_date   #{op} '#{dt.strftime('%Y-%m-%d')}'"
+    in Date, false then "local_date #{op} '#{dt.strftime('%Y-%m-%d')}'"
+    in Time, _     then "unix_time  #{op} #{dt.to_i}"
+    end
+  end
 
   def match(x, r) = "#{x} REGEXP '#{SQLite3::Database.quote r.to_s}'"
   def match_searchable(x, r) = "EXISTS (SELECT 1 FROM json_each(#{x}) WHERE #{match(:value, r)})"
