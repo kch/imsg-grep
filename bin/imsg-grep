@@ -116,7 +116,7 @@ begin
     in Sep # ignore; `arg:` will handle .rest just fine
     in label: "since", value:    then add_cond :since, parse_date(value)
     in label: "until", value:    then add_cond :until, parse_date(value)
-    in label: "to", value:       then add_cond :to, mk_regexp(value)
+    in label: "to", value:       then add_cond :to,   mk_regexp(value)
     in label: "from", value:     then add_cond :from, mk_regexp(value)
     in label: "with", value:     then add_cond :with, mk_regexp(value)
     in label: "chat", value:     then add_cond :chat, mk_regexp(value)
@@ -131,7 +131,7 @@ begin
     in label: "sent"             then add_cond :from_me, true
     in label: "received"         then add_cond :from_me, false
     in label: "links", value:nil then add_cond :links, true
-    in label: "links", value:    then add_cond :links, value
+    in label: "links", value:    then add_cond :links, mk_regexp(value)
     in label: "youtube"          then add_cond :links, :youtube
     in label: "soundcloud"       then add_cond :links, :soundcloud
     in label: "twitter"          then add_cond :links, :twitter
@@ -216,30 +216,28 @@ begin
   def match(x, r) = "#{x} REGEXP '#{SQLite3::Database.quote r.to_s}'"
   def match_searchable(x, r) = "EXISTS (SELECT 1 FROM json_each(#{x}) WHERE #{match(:value, r)})"
 
-  sql_cond = @conditions.map do |key, conds|
+  sql_cond = @conditions.filter_map do |key, conds|
     next if conds.empty?
-    conds.map do |value|
-      cond = case [key, value]
-      in :since, _             then date_cmp(:>=, value)
-      in :until, _             then date_cmp(:<=, value)
-      in :from_me, cond        then "is_from_me IS #{cond}"
+    conds.map! do |value|
+      case [key, value]
+      in :since,   _           then date_cmp(:>=, value)
+      in :until,   _           then date_cmp(:<=, value)
+      in :from_me, _           then "is_from_me IS #{value}"
       in :links, true          then "link_url IS NOT NULL"
       in :links, :youtube      then match(:link_url, %r[\Ahttps?://((www\.)?youtube\.com|youtu\.be)/]i)
       in :links, :soundcloud   then match(:link_url, %r[\Ahttps?://(on\.)?soundcloud\.com/]i)
       in :links, :twitter      then match(:link_url, %r[\Ahttps?://(pic\.)?(twitter|x)\.com/]i)
-      in :links, String        then match(:link_url, mk_regexp(value))
+      in :links,   Regexp      then match(:link_url, value)
       in :from,    Regexp      then match_searchable(:sender_searchable, value)
       in :to,      Regexp      then match_searchable(:recipients_searchable, value)
       in :with,    Regexp      then match_searchable(:members_searchable, value)
       in :chat,    Regexp      then match(:chat_name, value)
       in :message, Regexp      then match(:text, value)
       end
-      [key, "(#{cond})"]
-    end.group_by(&:first).transform_values{ it.map(&:last) }.map do |key, conds|
-      op = key == :links ? "OR" : "AND"
-      conds.join(" #{op} \n")
-    end.join
-  end.compact.map{ "(#{it})" }.join(" AND \n")
+    end
+    op = key == :links ? "OR" : "AND"
+    ?( + conds * " #{op} \n" + ?)
+  end.join(" AND \n")
 
   limit = "LIMIT #{@limit}" if @limit
   time_col = @utc ? :utc_time : :local_time
