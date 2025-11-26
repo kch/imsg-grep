@@ -173,6 +173,7 @@ begin
 ### checking conflicting options ###############################################
 ################################################################################
 
+  # find date conflicts, multiple dates + since > until
   d0, d1 = @conditions.values_at(:since, :until).map{it.uniq.sort}
   warn "multiple since dates given. Most recent wins"  if d0.size > 1
   warn "multiple until dates given. Least recent wins" if d1.size > 1
@@ -183,6 +184,7 @@ begin
   d0, d1 = [d0, d1].compact.map(&:to_date) if [d0, d1].map(&:class).uniq.size > 1
   raise OptionError, "Since date must be before until date" if d0 && d1 && d0 > d1
 
+  # -L(noarg) + -[YSX]|Larg, drops -L
   links = @conditions[:links]
   if links.include?(true) && links.uniq.size > 1
     links.delete(true)
@@ -190,9 +192,12 @@ begin
     warn "ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
   end
 
+  # allow -o + no msg pattern if links (capture link)
+  # + require mag pattern for -o otherwise
+  # + warn -o with multiple mag patterns
   if @capture
     *pats, @capture_rx = @conditions[:message]
-    @link_capture = !@capture_rx && @capture == '\0' && @conditions[:links].any? # no msg pats, argless -o, -L or friends
+    @link_capture = !@capture_rx && @capture == '\0' && @conditions[:links].any? # no msg pats & argless -o & -L or friends
     raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_rx || @link_capture
     warn "#{result[:capture]._name} used with multiple message patterns. Will use last given" unless pats.empty?
   end
