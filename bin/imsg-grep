@@ -255,7 +255,6 @@ begin
     msg[:to]            = JSON.parse(msg[:to] || '["me"]')
     msg[:payload]       = JSON.parse(msg.delete(:payload_json) || "null")
     msg[:is_group_chat] = msg[:is_group_chat] == 1
-
   end
 
   if @json
