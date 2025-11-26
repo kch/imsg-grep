@@ -99,9 +99,9 @@ module Messages
         JOIN contacts c ON c.contact_id = r.Z_PK                  -- get all contact->handle mappings with computed names
       ),
       searchables AS (
-        SELECT handle_id, c2.handle as term                       -- flatten: handle_id -> each handle string
-        FROM contacts c2
-        WHERE c2.handle_id IN (SELECT handle_id FROM computed)    -- only for handles that have contacts
+        SELECT c.handle_id, c2.handle as term                     -- get ALL handles for this contact
+        FROM computed c
+        JOIN contacts c2 ON c2.contact_id = c.contact_id
         UNION ALL
         SELECT handle_id, name as term                            -- flatten: handle_id -> each computed name
         FROM computed
