@@ -50,11 +50,13 @@ module Messages
     # - handle_id: handle.rowid in chat.db
     # - handle: email or phone number (formatted as handle)
     # - is_me: (unused atm)
-    # one row per handle. only handles that exist in chat.db
+    # one row per handle.
+    # only contacts that exist in chat.db, but all handles even those not in chat.db
+    # so can be used when matching contact info
     @db.ƒ(:normalize_phone) { |text| text =~ /[^\p{Punct}\p{Space}\d+]/ ? text : text.delete("^0-9+") } # remove punctuation from normal phones but keep weird phones intact
     @db.execute <<~SQL
       CREATE TEMP TABLE contacts AS
-      WITH handles AS (
+      WITH contact_handles AS ( -- handles from _addy per contact_id
         SELECT
           ZOWNER   as contact_id,
           ZADDRESS as handle
@@ -64,15 +66,24 @@ module Messages
           ZOWNER as contact_id,
           normalize_phone(ZFULLNUMBER) as handle
         FROM _addy.ZABCDPHONENUMBER
+      ),
+      matched_handles AS ( -- handles from _addy for matched handles in _imsg
+        SELECT DISTINCT
+          r.Z_PK    as contact_id,
+          ih.ROWID  as handle_id,
+          ch.handle as matched_handle,
+          (r.ZCONTAINERWHERECONTACTISME IS NOT NULL) as is_me
+        FROM _addy.ZABCDRECORD r
+        JOIN contact_handles ch ON r.Z_PK = ch.contact_id
+        JOIN _imsg.handle ih    ON ih.id = ch.handle                 -- only handles in _imsg
       )
-      SELECT DISTINCT
-        r.Z_PK   as contact_id,
-        mh.ROWID as handle_id,
-        h.handle as handle,
-        (r.ZCONTAINERWHERECONTACTISME IS NOT NULL) as is_me
-      FROM _addy.ZABCDRECORD r
-      JOIN handles h ON h.contact_id = r.Z_PK
-      JOIN _imsg.handle mh ON mh.id = h.handle -- only take handles that exist in _imsg
+      SELECT
+        mh.contact_id,
+        mh.handle_id,
+        ch.handle,                                                   -- all handles for this contact
+        mh.is_me
+      FROM matched_handles mh
+      JOIN contact_handles ch ON ch.contact_id = mh.contact_id       -- get ALL handles for matched contact
     SQL
 
     @db.ƒ(:computed_name) do |first, maiden, middle, last, nick, org|
@@ -112,7 +123,7 @@ module Messages
           FROM searchables s
           WHERE s.handle_id = c.handle_id) as searchable,         -- result: ["handle1","handle2","Name"]
         MIN(c.name) as name,                                      -- pick first computed name when duplicates
-        json_group_array(c.contact_id) as contact_ids             -- collect all contact_ids as JSON array
+        json_group_array(DISTINCT c.contact_id) as contact_ids    -- collect all contact_ids as JSON array
       FROM computed c
       GROUP BY c.handle_id                                        -- collapse duplicate contact entries per handle
       UNION
