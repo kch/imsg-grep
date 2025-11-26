@@ -27,6 +27,8 @@ include Strop::Exports
 
 def warn(s) = $stderr.puts("Warning: #{s}")
 
+def R(...) = Rainbow(...)
+
 ################################################################################
 ### parse helpers ##############################################################
 ################################################################################
@@ -141,9 +143,16 @@ begin
     in Sep # ignore, above `arg:` will handle .rest just fine
 
     # dev stuff: Used to see what options are still available
-    # in label: "opts"             then puts "Remaining options: " + ((?0..?z).to_a.grep(/\w/) - optlist.flat_map{ it.names.reject{it[1]} }).join(", ")
-    # in label: "opts"             then puts (?0..?z).to_a.grep(/\w/).map{ it + ": " + (optlist[it]&.label || "") }
-    in label: "opts"             then puts (?0..?z).to_a.grep(/\w/).map{ Rainbow(it).send(optlist[it]&.label ? :red : :bright) }.join(" "); exit
+    in label: "opts"
+      chars = (?0..?z).to_a.grep(/[^\W_]/).map{|c| [c] << R(c).then{ optlist[c]&.label ? it.black.bright : it.green.bright }}
+      puts chars.map(&:last).join(" ")
+      puts
+      longs = chars.map{|c, cc| l = optlist[c]&.label; [R("-").black.bright, cc, R((" --#{l}" if l)).blue].join }
+      per_col = 16
+      longs.fill("", longs.length...((longs.length + per_col - 1) / per_col * per_col)) # fill to multiple for transpose
+      w = longs.map(&:size).max + 4
+      puts longs.map{ "%-#{w}s" % it }.each_slice(per_col).to_a.transpose.map(&:join).join("\n")
+      exit
     end
   end
 
@@ -253,8 +262,6 @@ begin
     puts JSON.pretty_generate found
     exit
   end
-
-  def R(...) = Rainbow(...)
 
   for msg in found
     msg => guid:, from:, to:, chat_name:, text:, link_url:, time:, is_group_chat:, has_attachments:, payload:
