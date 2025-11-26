@@ -24,6 +24,7 @@ include Strop::Exports
 @conditions = Hash.new{ |h,k| h[k] = [] }
 @utc = false
 
+def warn(s) = $stderr.puts("Warning: #{s}")
 
 ################################################################################
 ### parse helpers ##############################################################
@@ -141,8 +142,8 @@ begin
 ################################################################################
 
   d0, d1 = @conditions.values_at(:since, :until).map{it.uniq.sort}
-  $stderr.puts "Warning: multiple since dates given. Most recent wins"  if d0.size > 1
-  $stderr.puts "Warning: multiple until dates given. Least recent wins" if d1.size > 1
+  warn "multiple since dates given. Most recent wins"  if d0.size > 1
+  warn "multiple until dates given. Least recent wins" if d1.size > 1
   d0 = d0.last
   d1 = d1.first
   # Time+Date would fail compare below, so we lose precision to make it work
@@ -154,14 +155,14 @@ begin
   if links.include?(true) && links.uniq.size > 1
     links.delete(true)
     overrides = result.select{ |it| it.label == "links" && !it.value.nil? }.map{ "#{it._name} #{it.value}" }
-    $stderr.puts "Warning: ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
+    warn "ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
   end
 
   if @capture
     *pats, @capture_rx = @conditions[:message]
     @link_capture = !@capture_rx && @capture == '\0' && @conditions[:links].any? # no msg pats, argless -o, -L or friends
     raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_rx || @link_capture
-    $stderr.puts "Warning: #{result[:capture]._name} used with multiple message patterns. Will use last given" unless pats.empty?
+    warn "#{result[:capture]._name} used with multiple message patterns. Will use last given" unless pats.empty?
   end
 
   if @conditions.values.all?(&:empty?) && !@allow_all
