@@ -173,7 +173,7 @@ begin
   links = @conditions[:links]
   if links.include?(true) && links.uniq.size > 1
     links.delete(true)
-    overrides = result.select{ |it| it.label == "links" && !it.value.nil? }.map{ "#{it._name} #{it.value}" }
+    overrides = result.opts.select{ |it| it.label == "links" && !it.value.nil? }.map{ "#{it._name} #{it.value}" }
     warn "ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
   end
 
