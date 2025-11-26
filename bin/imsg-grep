@@ -113,6 +113,7 @@ begin
 
   for opt in result
     case opt
+    in Sep # ignore; `arg:` will handle .rest just fine
     in label: "since", value:    then add_cond :since, parse_date(value)
     in label: "until", value:    then add_cond :until, parse_date(value)
     in label: "to", value:       then add_cond :to, mk_regexp(value)
@@ -145,13 +146,14 @@ begin
     in label: "help"             then puts HELP; exit
     in label: "help-dates"       then puts read_base["HELP_DATES"]; exit
     in label: "debug"            then @debug = true
+
     in arg:
       eopt = consume :@exact and warn "dropped #{eopt._name} used before message pattern."
       add_cond :message, mk_regexp(arg)
+
     in label: "reset"
       Messages.reset_cache
       exit if (result.opts.map(&:label) - ["reset"]).empty? # exit if opt used alone
-    in Sep # ignore, above `arg:` will handle .rest just fine
 
     # dev stuff: Used to see what options are still available
     in label: "opts"
