@@ -296,6 +296,7 @@ begin
     elsif @msg_only
       out = text
     else
+      nn = "\n\n"
       out = {
         GUID: (guid if @debug),
         From: from,
@@ -304,12 +305,12 @@ begin
         Chat: chat_name,
         Date: time
       }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{R(k.to_s).yellow}: #{R(v).bright.yellow}" }.join("\n")
-      out << "\n" << text
+      out << nn << text
       title   = payload&.dig(*%w[ richLinkMetadata title ])
       summary = payload&.dig(*%w[ richLinkMetadata summary ])
-      out << "\n\n" << R(title.gsub(/^/, "  ")).cyan.bright if title
-      out << "\n\n" << R(summary.gsub(/^/, "  ")).cyan if summary
-      out << "\n\n"
+      out << nn << R(title.gsub(/^/, "  ")).cyan.bright if title
+      out << nn << R(summary.gsub(/^/, "  ")).cyan if summary
+      out << nn
     end
 
     puts out
