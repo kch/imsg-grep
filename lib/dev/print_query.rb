@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-# Query result formatter that prints SQL results in a readable key-value format
+# Query result formatter that prints SQL results in Very Nice tables
 
 require "io/console"
 
@@ -77,18 +77,4 @@ module Print
     puts
   end
 
-end
-
-def print_query(db, *args, sql)
-  puts "\n#{'=' * 80}"
-
-  cols, *rows = db.execute2(sql, *args)
-  width = cols.map(&:length).max
-  rows.each do |row|
-    row.each_with_index do |val, i|
-      val = val.nil? ? "NULL" : val.to_s
-      puts "#{cols[i].ljust(width, ' ')} : #{val.gsub("\n", "\n   " + ' ' * width)}"
-    end
-    puts "-" * 80
-  end
 end

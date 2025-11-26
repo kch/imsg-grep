@@ -8,9 +8,28 @@ require_relative '../lib/messages'
 
 db = Messages.init
 
+def print_results(results2)
+  puts "\n#{'=' * 80}"
+
+  cols, *rows = results2
+  width = cols.map(&:length).max
+  rows.each do |row|
+    row.each_with_index do |val, i|
+      if cols[i] == "payload_json" && val
+        val = IO.popen("jq -C", "r+") { |jq| jq << val; jq.close_write; jq.read.chomp }
+      else
+        val = val.nil? ? "NULL" : val.to_s
+        val = val.gsub("\n", "\n   " + ' ' * width)
+      end
+      puts "#{cols[i].ljust(width, ' ')} : #{val}"
+    end
+    puts "-" * 80
+  end
+end
+
 def print_message_details(db, msg_id)
   id_cond = msg_id =~ /-/ ? "orig.guid" : "orig.ROWID"
-  print_query(db, msg_id, <<~SQL)
+  print_results db.execute2(<<~SQL, msg_id)
     SELECT
       -- Core identifiers
       m.message_id,
@@ -24,13 +43,6 @@ def print_message_details(db, msg_id)
       -- m.chat_name,
 
       -- -- Message content
-      m.sender_name,
-      m.recipient_names,
-      -- m.sender_details,
-      -- m.participant_details,
-      -- ) as participant_names,
-      -- m.computed_text,
-      -- m.payload,
 
       m.sender_name,
       m.sender_searchable,
@@ -54,8 +66,6 @@ def print_message_details(db, msg_id)
       orig.date,
       orig.date_read,
       orig.date_delivered,
-      HEX(orig.attributedBody) as attributedBody_hex,
-      HEX(orig.payload_data) as payload_data_hex,
 
       -- Thread/Reply
       orig.thread_originator_guid,
@@ -87,7 +97,13 @@ def print_message_details(db, msg_id)
       orig.is_forward,
       orig.is_service_message,
       orig.is_spam,
-      orig.error
+      orig.error,
+
+      -- Big Data
+      HEX(orig.attributedBody) as attributedBody_hex,
+      HEX(orig.payload_data) as payload_data_hex,
+      unarchive_keyed(m.payload_data) as payload_json
+
 
     FROM  _imsg.message orig
     LEFT JOIN message_view m ON m.message_id = orig.ROWID
