@@ -48,27 +48,60 @@ Other:
     -h, --help             Show this help
     --help-dates           Show detailed DATE help
 
+~~H~~
 
--- TODO: split marker. -h shows above, --help adds below.
+~~HELP~~
 
-DATE must be in ISO8601 format. Time and TZ optional.
-You can use gdate for calculations: -d `gdate -Im -d -7days`
-Dates are consdered local unless -Z or TZ component present in string.
+# Dates
 
-PATTERN is a regular expression (onigmo).
-Case-insensitive by default, unless upcase letters present.
-Can force senitivity with '(?-i:pattern)'
-Use -l to match literal string.
+Two formats supported:
 
-CONTACT works the same as pattern but matches a contact.
-You can give part of a name, phone number, email. It'll look up
-the full contact details in the address book and match against every
-handle available for every matched contact.
+1. ISO8601 format. Time and TZ optional.
+
+Examples
+
+  -d '2024-12-30'
+  -d '2024-12-30 12:34'
+  -d '2024-12-30T12:45Z'
+
+Times are considered local unless TZ component present in string,
+or -Z option used.
+
+2. Relative dates/times:
+
+  -d 4y     # since 4 years ago
+  -d 1m5w   # 1 month 5 weeks
+  -d 30min  # 30 minutes
+  -d 3a     # since 3am today
+
+See --help-dates for more details.
+
+# Patterns
+
+PATTERN or CONTACT is a regular expression.
+
+CONTACT matches a contact's address book information: You can give part of a name, phone number, email.
+
+Smart-case is the default case, which means case-insensitive, unless upcase letters present.
+
+Use -l to match literal strings, -i and -I to change case sensitivity.
+
+Pattern flags (-iICxl) affect all subsequent options. So:
+
+  -Ilf Andy -xit 'pedro|bob' -cfoo
+
+matches literal case-sensitive 'Andy' sender, and case-insensitive regexp recipient, and chat name too.
+
+Matches are partial, if you need to match a full name (or email, etc) use regexp anchors.
+
+
+
+# Capture
 
 --capture EXPR
-When omitted, the entire match is presented.
-When a number, that capture group is presented.
-When a format string: "foo $1 bar $2", interpolates the captures.
+When EXPR omitted, the entire match is presented.
+When its a number, that capture group is presented.
+When its a format string: "foo $1 bar $2", interpolates the captures.
 -o same as -o"$&"
 -o1 same as -o"$1"
 --o "$3, $2"
