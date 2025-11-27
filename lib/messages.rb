@@ -39,8 +39,10 @@ module Messages
 
     regex_cache = Hash.new { |h,src| h[src] = Regexp.new(src) }
     @db.ƒ(:regexp)           { |rx, text| regex_cache[rx].match?(text) ? 1 : 0 }
+    @db.ƒ(:apple2unix)       { |time| (time / 1_000_000_000) + APPLE_EPOCH }
     @db.ƒ(:unarchive_keyed)  { |data| KeyedArchive.unarchive(data).to_json if data }
     @db.ƒ(:unarchive_string) { |data| AttributedStringExtractor.extract(data) if data }
+    # othan than regexp, the simpler versions above are no longer used because caching, but useful when doing other sql stuff
 
     ################################################################################
     ### Contacts/handles setup #####################################################
