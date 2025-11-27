@@ -6,6 +6,7 @@ require "io/console"
 
 module Print
   @term_width = IO.console.winsize[1]
+  @term_width -= 3 if ENV["TERM_PROGRAM"] == "zed" # safe zone for https://github.com/zed-industries/zed/issues/43629
 
   def self.c256(c, s) = "\e[38;5;#{c}m#{s}\e[39m"
   def self.mark(s) = "\e[38;5;178m#{s}\e[39m"
