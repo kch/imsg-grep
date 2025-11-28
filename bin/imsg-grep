@@ -227,11 +227,11 @@ begin
       in :since,   _           then date_cmp(:>=, value)
       in :until,   _           then date_cmp(:<=, value)
       in :from_me, _           then "is_from_me IS #{value}"
-      in :links, true          then "link_url IS NOT NULL"
-      in :links, :youtube      then match(:link_url, %r[\Ahttps?://((www\.)?youtube\.com|youtu\.be)/]i)
-      in :links, :soundcloud   then match(:link_url, %r[\Ahttps?://(on\.)?soundcloud\.com/]i)
-      in :links, :twitter      then match(:link_url, %r[\Ahttps?://(pic\.)?(twitter|x)\.com/]i)
-      in :links,   Regexp      then match(:link_url, value)
+      in :links, true          then "link IS NOT NULL"
+      in :links, :youtube      then match(:link, %r["https?://((www\.)?youtube\.com|youtu\.be)/]i) # matching inside json, " acts as \A sort of
+      in :links, :soundcloud   then match(:link, %r["https?://(on\.)?soundcloud\.com/]i)
+      in :links, :twitter      then match(:link, %r["https?://(pic\.)?(twitter|x)\.com/]i)
+      in :links,   Regexp      then match(:link, value)
       in :from,    Regexp      then match_searchable(:sender_searchable, value)
       in :to,      Regexp      then match_searchable(:recipients_searchable, value)
       in :with,    Regexp      then match_searchable(:members_searchable, value)
@@ -247,8 +247,7 @@ begin
   time_col = @utc ? :utc_time : :local_time
   sql = <<~SQL
     SELECT
-      -- message_id,
-      payload_json,
+      #{'payload_json,' if @payload}
       guid,
       has_attachments,
       sender_name as "from",
@@ -256,7 +255,7 @@ begin
       is_group_chat,
       chat_name,
       text,
-      link_url,
+      link,
       utc_time,
       #{time_col} as time
     FROM message_view
@@ -276,31 +275,31 @@ begin
   found.each do |msg|
     msg[:from]        ||= "me"
     msg[:to]            = JSON.parse(msg[:to] || '["me"]')
-    msg[:payload]       = JSON.parse(msg.delete(:payload_json) || "null")
+    msg[:link]          = JSON.parse(msg[:link] || "null")
+    msg[:payload]       = JSON.parse(msg.delete(:payload_json) || "null") if msg.key? :payload_json
     msg[:is_group_chat] = msg[:is_group_chat] == 1
   end
 
   if @json
-    found.each{ it.delete(:payload) unless @payload }
     puts JSON.pretty_generate found
     exit
   end
 
   for msg in found
-    msg => guid:, from:, to:, chat_name:, text:, link_url:, time:, is_group_chat:, has_attachments:, payload:
+    msg => guid:, from:, to:, chat_name:, text:, link:, time:, is_group_chat:, has_attachments:
 
     text = text.to_s
-    text = link_url if text.empty? && link_url
+    text = link["url"] if text.empty? && link
 
     if @capture_rx == :link
-      text = link_url
+      text = link["url"]
     elsif @capture
       match = text.match @capture_rx
       text = @capture.gsub(/\\(\d)/){ match[$1.to_i] }
     end
 
     highlight_conds = @conditions[:message]
-    link_urls = !link_url ? nil : [payload&.dig(*%w[richLinkMetadata originalURL]), link_url]
+    link_urls = !link ? nil : link.values_at("original_url", "url")
     highlight = [*link_urls&.map{ Regexp.escape it if it }, *highlight_conds].compact
 
     text = text.gsub(/#{highlight.join(?|)}/) do
@@ -317,12 +316,14 @@ begin
 
     if @one_line && !@msg_only
       out = "#{R(time).bright.blue} [#{R(from).yellow} -> #{R(chat_name.to_s.empty? ? to*', ' : chat_name).yellow.bright}]: #{R(text)}" unless @msg_only
+      [[:time, time], ?[, [:from, from], ' -> ', [:chat, (chat_name.to_s.empty? ? to*', ' : chat_name)], ']: ', [:msg, text]]
+      "#{time} #{¢:wrap}[#{from} -> #{}]#{¢:/}: #{text}"
     elsif @msg_only
       out = text
     else
       nn = "\n\n"
-      title   = payload&.dig(*%w[ richLinkMetadata title ])
-      summary = payload&.dig(*%w[ richLinkMetadata summary ])
+      title   = (link["title"] if link)
+      summary = (link["summary"] if link)
       out = {
         GUID: (guid if @debug),
         From: from,

@@ -168,16 +168,23 @@ module Messages
     noallow = Regexp.escape('\|^"<>{}[]') + end_mark
     rx_url = %r(\bhttps?://[^#{noallow}]{4,}?(?=["':;,\.\)]{0,3}(?:[#{end_mark}]|$)))i
 
-    @db.ƒ(:cache_link_url) do |guid, data, text, attr|
+    @db.ƒ(:cache_link_metadata) do |guid, data, text, attr|
       next @cache[:links][guid] if @cache[:links][guid]
       text = cache_text.(guid, attr)
       cache_payload.(guid, data) # force @cache[:payload_data] to be set
       payload = @cache[:payload_data][guid]
 
-      @cache[:links][guid] = \
-        payload&.dig("richLinkMetadata", "URL") ||
-        payload&.dig("richLinkMetadata", "originalURL") ||
-        (text && text[rx_url])
+      rich_link = payload&.dig "richLinkMetadata"
+      found_url = text[rx_url] if text          # manual extraction, in case no rich link data
+      rich_url  = rich_link&.dig "URL"          # canonical or resolved
+      orig_url  = rich_link&.dig "originalURL"  # extracted by imessage from text, adds protocol etc
+      title     = rich_link&.dig "title"
+      summary   = rich_link&.dig "summary"
+      image     = rich_link&.dig "imageMetadata", "URL"
+      url = rich_url || orig_url || found_url
+
+      link = { url:, title:, summary:, image:, original_url: orig_url } if url
+      @cache[:links][guid] = link.to_json
     end
 
     at_exit do
@@ -226,8 +233,8 @@ module Messages
             as payload_json,
           COALESCE(cl.value, IIF(cl.guid IS NULL AND (
               m.payload_data IS NOT NULL OR instr(m.text, 'http') OR instr(m.attributedBody, 'http')
-            ), cache_link_url(m.guid, m.payload_data, m.text, m.attributedBody)))
-            as link_url
+            ), cache_link_metadata(m.guid, m.payload_data, m.text, m.attributedBody)))
+            as link
         FROM message m
         LEFT JOIN _cache.texts    ct ON m.guid = ct.guid
         LEFT JOIN _cache.payloads cp ON m.guid = cp.guid
@@ -249,7 +256,7 @@ module Messages
         datetime(#{unix_time}, 'unixepoch', 'localtime')                    as local_time,
         m.is_from_me                                                        as is_from_me,
         m.payload_data                                                      as payload_data,
-        mc.link_url,
+        mc.link,
         cm.is_group_chat,
         CASE
         WHEN hg_recipient.name IS NOT NULL
