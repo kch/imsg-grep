@@ -137,7 +137,8 @@ begin
     in label: "soundcloud"       then add_cond :links, :soundcloud
     in label: "twitter"          then add_cond :links, :twitter
     in label: "capture", value:  then @capture = parse_capture(value)
-    in label: "no-meta"          then @msg_only = true
+    in label: "urls"             then @capture_link = true
+    in label: "no-meta"          then @no_meta = true
     in label: "one-line"         then @one_line = true
     in label: "json"             then @json = true
     in label: "payload"          then @json = true, @payload = true
@@ -191,14 +192,12 @@ begin
     warn "ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
   end
 
-  # allow -o + no msg pattern if links (capture whole link instead)
-  # + require mag pattern for -o otherwise
-  # + warn -o with multiple mag patterns
+  # require mag pattern for -o
+  # warn -o with multiple msg patterns
   if @capture
-    *pats, @capture_rx = @conditions[:message]                                           # take last pattern for capture
-    @capture_rx = :link if !@capture_rx && @capture == '\0' && @conditions[:links].any?  # no msg pats & argless -o & -L or friends
-    raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_rx
-    warn "#{result[:capture]._name} used with multiple message patterns. Will use last given" unless pats.empty?
+    *pats, @capture_pat = @conditions[:message]  # take last pattern for capture refs, rest for warn
+    raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_pat
+    warn "#{result[:capture]._name} used with multiple message patterns. Will capture from last." unless pats.empty?
   end
 
   if @conditions.values.all?(&:empty?) && !@allow_all
@@ -279,7 +278,7 @@ begin
   found.each do |msg|
     msg[:from]        ||= "me"
     msg[:to]            = JSON.parse(msg[:to] || '["me"]')
-    msg[:link]          = JSON.parse(msg[:link] || "null")
+    msg[:link]          = JSON.parse(msg[:link] || "null")&.transform_keys(&:to_sym)
     msg[:payload]       = JSON.parse(msg.delete(:payload_json) || "null") if msg.key? :payload_json
     msg[:is_group_chat] = msg[:is_group_chat] == 1
   end
@@ -289,60 +288,99 @@ begin
     exit
   end
 
+  class String
+    # 'xxx'.cleave(nil) # => %w[ xxx ]
+    # 'a1b2c3d'.cleave(/\d/) # => %w[ a 1 b 2 c 3 d ]
+    # (cant use split(/(...)/) bc inner regexen may have captures)
+    def cleave(rx, &)
+      return [self] unless rx
+      r, i = [], 0
+      scan(rx) { r << self[i...$~.begin(0)] << $&; i = $~.end(0) }
+      r << self[i..]
+    end
+  end
+
+  # stylesheets :P
+  def Rlink(s)        = R(s).green
+  def RHlink(s)       = R(s).green.bright
+  def RHmatch(s)      = R(s).magenta.bright
+  def RHcapture(s)    = R(s).red.bright
+  def Rattachs(s)     = R(s).cyan
+  def ROtime(s)       = R(s).bright.blue
+  def ROfrom(s)       = R(s).yellow
+  def ROto(s)         = R(s).yellow.bright
+  def Rlabel(s)       = R(s).yellow
+  def Rvalue(s)       = R(s).yellow.bright
+  def RlinkTitle(s)   = R(s).cyan.bright
+  def RlinkSummary(s) = R(s).cyan
+
+  # to highlight all matches in text, inside links
+  rx_highlight       = /#{@conditions[:message]*?|}/ if @conditions[:message].any?
+  rx_links           = @conditions[:links].select{ Regexp===it }
+  rx_link_highlights = [*rx_links, rx_highlight].compact
+  rx_link_highlights = (/#{rx_link_highlights*?|}/ if rx_link_highlights.any?)
+
+  def highlight(s, r, a, b)
+    return unless s
+    s.cleave(r).each_slice(2).flat_map do |sa, sb|
+      [ (a.(sa) if sa && !sa.empty?),
+        (b.(sb) if sb && !sb.empty?)]
+    end.join
+  end
+
   for msg in found
     msg => guid:, from:, to:, chat_name:, text:, link:, time:, is_group_chat:, has_attachments:
 
-    text = text.to_s
-    text = link["url"] if text.empty? && link
+    # highlight matches inside urls
+    url,  ourl  = link&.values_at(:url, :original_url)
+    curl, courl = [url, ourl].map { highlight(it, rx_link_highlights, ->a{Rlink a}, ->b{RHlink b}) }
 
-    if @capture_rx == :link
-      text = link["url"]
-    elsif @capture
-      match = text.match @capture_rx
-      text = @capture.gsub(/\\(\d)/){ match[$1.to_i] }
+    text = text.to_s.dup
+    if @capture_link && url  # captured links replace text
+      text = curl
+    elsif @capture    # replace text with eval'd capture output string
+      match = @capture_pat.match text
+      text  = @capture.gsub(/\\(\d)/){ RHcapture match[$1.to_i] }
+    else
+      rx_links = (/#{[ourl, url].compact.map{Regexp.escape it}*?|}/ if link)
+      has_link = text =~ rx_links if link
+      # hightlight matches in text, first replacing links with colored versions from above
+      text = text.cleave(rx_links).each_slice(2).flat_map do |s, u|
+        msg_text = highlight(s, rx_highlight, ->a{a}, ->b{RHmatch b}) # hilight the message part that is not link
+        msg_url  = { ourl => courl, url => curl}[u]                   # urls highlighted earlier, use that
+        [msg_text, msg_url]
+      end.join
+      # append whole url if not fully present in text (missing protocol etc)
+      text << "\n\n" << curl if link && !has_link
     end
 
-    highlight_conds = @conditions[:message]
-    link_urls = !link ? nil : link.values_at("original_url", "url")
-    highlight = [*link_urls&.map{ Regexp.escape it if it }, *highlight_conds].compact
+    text = text.gsub(/\p{Space}*\R\p{Space}*/, " ").strip if @one_line
+    text = Rattachs("[attachments]") if has_attachments && text =~ /\A\uFFFC*\z/ # if text is empty or only object marker
 
-    text = text.gsub(/#{highlight.join(?|)}/) do
-      if link_urls&.include?($&)                            # highlight match text inside link url
-        open, close = R(" | ").green.split(?|).map(&:strip) # bit of a kludge but works; spaces handle case where Rainbow is disabled
-        open + $&.gsub(/#{highlight_conds.join ?|}/){ close + R($&).bright.green + open } + close
-      else
-        R($&).magenta.bright
-      end
-    end if highlight.any?
-
-    text = text.gsub(/\R/, " ") if @one_line
-    text = R("[attachments]").cyan if text =~ /\A\uFFFC*\z/ && has_attachments
-
-    if @one_line && !@msg_only
-      out = "#{R(time).bright.blue} [#{R(from).yellow} -> #{R(chat_name.to_s.empty? ? to*', ' : chat_name).yellow.bright}]: #{R(text)}" unless @msg_only
-      [[:time, time], ?[, [:from, from], ' -> ', [:chat, (chat_name.to_s.empty? ? to*', ' : chat_name)], ']: ', [:msg, text]]
-      "#{time} #{¢:wrap}[#{from} -> #{}]#{¢:/}: #{text}"
-    elsif @msg_only
-      out = text
+    if @no_meta # oneline included, already onelined above
+      puts text
+    elsif @one_line
+      to = chat_name.to_s.empty? ? to*', ' : chat_name
+      puts "#{ROtime time} [#{ROfrom from} -> #{ROto to}]: #{text}"
     else
-      nn = "\n\n"
-      title   = (link["title"] if link)
-      summary = (link["summary"] if link)
+      nn      = "\n\n"
+      title   = link&.dig :title
+      summary = link&.dig :summary
       out = {
         GUID: (guid if @debug),
         From: from,
         "To..": (to*', ' unless is_group_chat),
-        With: (to*', ' if is_group_chat),
+        With:   (to*', ' if is_group_chat),
         Chat: chat_name,
         Date: time
-      }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{R(k.to_s).yellow}: #{R(v).bright.yellow}" }.join("\n")
+      }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{Rlabel k}: #{Rvalue v}" }*?\n
       out << nn << wrap(text, 2)
-      out << nn << R(wrap(title, 2)).cyan.bright if title
-      out << nn << R(wrap(summary, 2)).cyan if summary
+      out << nn << RlinkTitle(wrap(title, 2)) if title
+      out << nn << RlinkSummary(wrap(summary, 2)) if summary
       out << nn
+      puts out
     end
 
-    puts out
   end
 
 rescue OptionError => e
