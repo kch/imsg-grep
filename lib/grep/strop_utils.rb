@@ -20,13 +20,9 @@ class Strop::Result
   # raises OptionError if options from different groups are used together
   def exclusive(*groups)
     labels = opts.map(&:label)
-    groups.map!{ [*it] } # normalize if passed strings instead of lists
-    for group in groups
-      right = labels & (groups - [group]).flatten(1)
-      left  = labels & group
-      bad   = right | left
-      raise OptionError, "Cannot use together: #{bad.map{self[it]._name}.join(', ')}" if right.any? && left.any?
-    end
+    conflicts = groups.map{ [*it] & labels }.reject(&:empty?)
+    return unless conflicts.size > 1
+    raise OptionError, "Cannot use together: #{conflicts.flatten.map{self[it]._name}.join(', ')}"
   end
 
   # Compacts duplicate single-occurrence options by keeping only the last occurrence.
