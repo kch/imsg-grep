@@ -280,8 +280,7 @@ module Messages
       LEFT JOIN chat_members cm             ON c.ROWID = cm.chat_id
       WHERE
       ((associated_message_type IS NULL OR associated_message_type < 1000)                               -- Exclude associated reaction messages 1000: stickers, 20xx: reactions; 30xx: remove reactions
-        AND (balloon_bundle_id IS NULL OR balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider')  -- Exclude Digital touch lol
-        AND (balloon_bundle_id IS NULL OR balloon_bundle_id NOT LIKE '%com.apple.findmy.FindMyMessagesApp')  -- Exclude Find My
+        AND (balloon_bundle_id IS NULL OR balloon_bundle_id = 'com.apple.messages.URLBalloonProvider')   -- Exclude all payload msgs that are not links. Digital touch lol, Find My, etc
       )
     SQL
 
