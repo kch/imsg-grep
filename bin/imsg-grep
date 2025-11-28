@@ -302,6 +302,7 @@ begin
     highlight_conds = @conditions[:message]
     link_urls = !link_url ? nil : [payload&.dig(*%w[richLinkMetadata originalURL]), link_url]
     highlight = [*link_urls&.map{ Regexp.escape it if it }, *highlight_conds].compact
+
     text = text.gsub(/#{highlight.join(?|)}/) do
       if link_urls&.include?($&)                            # highlight match text inside link url
         open, close = R(" | ").green.split(?|).map(&:strip) # bit of a kludge but works; spaces handle case where Rainbow is disabled
