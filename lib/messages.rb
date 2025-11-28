@@ -281,6 +281,7 @@ module Messages
       WHERE
       ((associated_message_type IS NULL OR associated_message_type < 1000)                               -- Exclude associated reaction messages 1000: stickers, 20xx: reactions; 30xx: remove reactions
         AND (balloon_bundle_id IS NULL OR balloon_bundle_id != 'com.apple.DigitalTouchBalloonProvider')  -- Exclude Digital touch lol
+        AND (balloon_bundle_id IS NULL OR balloon_bundle_id NOT LIKE '%com.apple.findmy.FindMyMessagesApp')  -- Exclude Find My
       )
     SQL
 
