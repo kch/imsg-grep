@@ -43,13 +43,12 @@ def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: !$stdout.tty?)
   sgr = /\e\[[\d;]*m/
   pad = " " * indent
   s.lines.map(&:chomp).each_with_object([]) do |line, acc|
-    until line.empty?
-      break acc << pad+line if line =~ %r[^#{sgr}*https?://\S+\z] # don't wrap link lines
-      w = maxw - indent
-      line.scan(sgr) { $~.begin(0) > w ? break : w += it.bytesize } # increase w to account for SGR
-      ix = (line.rindex(" ", w) || w-1 if line.size > w)            # find last space before w, or use w, or nil when short enough
-      acc << pad + line.slice!(..ix).chomp(" ")
-    end
+    next acc << pad+line if line =~ %r[^#{sgr}*https?://\S+\z] # don't wrap link lines
+    w = maxw - indent
+    line.scan(sgr) { $~.begin(0) > w ? break : w += it.bytesize } # increase w to account for SGR
+    ix = (line.rindex(" ", w) || w-1 if line.size > w)            # find last space before w, or use w, or nil when short enough
+    acc << pad + line.slice!(..ix).chomp(" ")
+    redo unless line.empty?
   end*?\n
 end
 
