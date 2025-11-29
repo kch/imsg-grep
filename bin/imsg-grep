@@ -53,7 +53,7 @@ def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: !$stdout.tty?)
   end*?\n
 end
 
-def warn(s) = $stderr.puts("Warning: #{s}")
+def warn!(s) = $stderr.puts("Warning: #{s}")
 
 def R(...) = Rainbow(...)
 
@@ -157,7 +157,7 @@ begin
     in label: "debug"            then @debug = true
 
     in arg:
-      eopt = consume :@exact and warn "dropped #{eopt._name} used before message pattern."
+      eopt = consume :@exact and warn! "dropped #{eopt._name} used before message pattern."
       add_cond :message, mk_regexp(arg), negate: consume(:@negate)
 
     in label: "reset"
@@ -182,6 +182,10 @@ begin
 ### checking conflicting options ###############################################
 ################################################################################
 
+  if @conditions.empty? && !@allow_all
+    raise OptionError, "No filter conditions given. Use --all to allow, or see --help"
+  end
+
   # find date conflicts: since > until
   # Time<=>Date would fail compare below, so we lose precision to make it work (
   # in most cases, without doing a lot of work. Worst case, empty results.
@@ -195,8 +199,12 @@ begin
   links = @conditions[:links]
   if links.include?(true) && links.uniq.size > 1
     links.delete(true)
-    overrides = result.opts.select{ |it| it.label == "links" && !it.value.nil? }.map{ "#{it._name} #{it.value}" }
-    warn "ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
+    overrides = result.opts.select do
+      site_link = %w[ youtube soundcloud twitter ].include?(it.label)
+      pat_link = it.label == "links" && !it.value.nil?
+      site_link || pat_link
+    end.map{ "#{it._name} #{it.value}" }
+    warn! "ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
   end
 
   # require mag pattern for -o
@@ -205,11 +213,7 @@ begin
   if @capture
     *pats, @capture_pat = @conditions.tuples(:message).filter_map{|c,negate| c unless negate }  # take last pattern for capture refs, rest for warn
     raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_pat
-    warn "#{result[:capture]._name} used with multiple message patterns. Will capture from last." unless pats.empty?
-  end
-
-  if @conditions.empty? && !@allow_all
-    raise OptionError, "No filter conditions given. Use --all to allow, or see --help"
+    warn! "#{result[:capture]._name} used with multiple message patterns. Will capture from last." unless pats.empty?
   end
 
 ################################################################################

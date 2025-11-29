@@ -34,7 +34,7 @@ class Strop::Result
   def compact_singles!(*labels)
     labels.flatten.filter_map{ (os = opts[[it]]).size > 1 and [it, os] }.each do |label, opts|
       names = opts.map(&:_name).uniq.join(", ")
-      warn "multiple #{names} options specified. Last takes precedence."
+      warn! "multiple #{names} options specified. Last takes precedence."
       replace self - opts[...-1]
     end
   end
