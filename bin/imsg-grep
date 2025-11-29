@@ -32,7 +32,7 @@ include Strop::Exports
 def consume(ivarname) = instance_variable_get(ivarname).tap{ instance_variable_set(ivarname, false) }
 
 # wrap and indent text, respecting SGR sequences; only if tty
-def wrap(s, indent=0, maxw = IO.console.winsize[1], disable: !$stdout.tty?)
+def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: !$stdout.tty?)
   return s if disable
   sgr = /\e\[[\d;]*m/
   pad = " " * indent
