@@ -18,6 +18,7 @@ Pattern modifiers:
     -I, --no-ignore-case   Case-sensitive matches
     -q, --literal          Literal string match, no regex
     -x, --regexp           Regexp match (default, turn off with -q)
+    -v, --invert-match     Negate next pattern
     -E, --exact            Match full string only
                            Affects next participant filter only
                            No effect on message patterns

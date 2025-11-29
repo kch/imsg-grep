@@ -21,11 +21,17 @@ require_relative "../lib/messages"
 include Strop::Exports
 
 ### initial values and defaults
+@utc = false
 @case = :smart
 @mode = :regexp
 @exact = false
-@utc = false
-@conditions = Hash.new{ |h,k| h[k] = [] }
+@negate = false
+@conditions = []
+
+class << @conditions
+  def [](group, ...) = Symbol===group ? filter_map{|k,c,*| c if k == group } : super
+  def tuples(group)  = filter_map{|k, *xs| xs if k == group }
+end
 
 ### tiny helpers
 
@@ -89,8 +95,8 @@ rescue RegexpError => e
   raise OptionError, "Invalid regular expression (#{pattern}): #{e.message}"
 end
 
-def add_cond(key, value)
-  @conditions[key] << value
+def add_cond(key, value, negate: false)
+  @conditions << [key, value, negate]
 end
 
 ################################################################################
@@ -117,22 +123,23 @@ begin
     in Sep # ignore; `arg:` will handle .rest just fine
     in label: "since", value:    then add_cond :since, parse_date(value)
     in label: "until", value:    then add_cond :until, parse_date(value)
-    in label: "to", value:       then add_cond :to,    mk_regexp(value)
-    in label: "from", value:     then add_cond :from,  mk_regexp(value)
-    in label: "with", value:     then add_cond :with,  mk_regexp(value)
-    in label: "chat", value:     then add_cond :chat,  mk_regexp(value)
+    in label: "to", value:       then add_cond :to,    mk_regexp(value), negate: consume(:@negate)
+    in label: "from", value:     then add_cond :from,  mk_regexp(value), negate: consume(:@negate)
+    in label: "with", value:     then add_cond :with,  mk_regexp(value), negate: consume(:@negate)
+    in label: "chat", value:     then add_cond :chat,  mk_regexp(value), negate: consume(:@negate)
     in label: "smart-case"       then @case = :smart
     in label: "ignore-case"      then @case = :ignore
     in label: "no-ignore-case"   then @case = :sensitive
     in label: "literal"          then @mode = :literal
     in label: "regexp"           then @mode = :regexp
+    in label: "invert-match"     then @negate = true
     in label: "exact"            then @exact = opt
     in label: "max", value:      then @limit = parse_p_int(value); @allow_all = true
     in label: "all"              then @allow_all = true
     in label: "sent"             then add_cond :from_me, true
     in label: "received"         then add_cond :from_me, false
     in label: "links", value:nil then add_cond :links, true
-    in label: "links", value:    then add_cond :links, mk_regexp(value)
+    in label: "links", value:    then add_cond :links, mk_regexp(value), negate: consume(:@negate)
     in label: "youtube"          then add_cond :links, :youtube
     in label: "soundcloud"       then add_cond :links, :soundcloud
     in label: "twitter"          then add_cond :links, :twitter
@@ -151,7 +158,7 @@ begin
 
     in arg:
       eopt = consume :@exact and warn "dropped #{eopt._name} used before message pattern."
-      add_cond :message, mk_regexp(arg)
+      add_cond :message, mk_regexp(arg), negate: consume(:@negate)
 
     in label: "reset"
       Messages.reset_cache
@@ -179,8 +186,8 @@ begin
   # Time<=>Date would fail compare below, so we lose precision to make it work (
   # in most cases, without doing a lot of work. Worst case, empty results.
   # fine to convert as these values are only use for this check
+  d0, d1 = @conditions[:since].last, @conditions[:until].last
   d0, d1 = [d0, d1].compact.map(&:to_date) if [d0, d1].map(&:class).uniq.size > 1
-  d0, d1 = @conditions.values_at(:since, :until).map(&:last)
   raise OptionError, "Since date must be before until date" if d0 && d1 && d0 > d1
 
   # ignore request for all links when already getting more specific site links
@@ -194,13 +201,14 @@ begin
 
   # require mag pattern for -o
   # warn -o with multiple msg patterns
+  # ignore -v patterns
   if @capture
-    *pats, @capture_pat = @conditions[:message]  # take last pattern for capture refs, rest for warn
+    *pats, @capture_pat = @conditions.tuples(:message).filter_map{|c,negate| c unless negate }  # take last pattern for capture refs, rest for warn
     raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_pat
     warn "#{result[:capture]._name} used with multiple message patterns. Will capture from last." unless pats.empty?
   end
 
-  if @conditions.values.all?(&:empty?) && !@allow_all
+  if @conditions.empty? && !@allow_all
     raise OptionError, "No filter conditions given. Use --all to allow, or see --help"
   end
 
@@ -219,10 +227,9 @@ begin
   def match(x, r) = "#{x} REGEXP '#{SQLite3::Database.quote r.to_s}'"
   def match_searchable(x, r) = "EXISTS (SELECT 1 FROM json_each(#{x}) WHERE #{match(:value, r)})"
 
-  sql_cond = @conditions.filter_map do |key, conds|
-    next if conds.empty?
-    conds = conds.map do |value|
-      case [key, value]
+  sql_cond = @conditions.group_by(&:first).map do |key, conds|
+    conds = conds.map do |_, value, negate|
+      sql = case [key, value]
       in :since,   _           then date_cmp(:>=, value)
       in :until,   _           then date_cmp(:<=, value)
       in :from_me, _           then "is_from_me IS #{value}"
@@ -237,6 +244,8 @@ begin
       in :chat,    Regexp      then match(:chat_name, value)
       in :message, Regexp      then match(:text, value)
       end
+      sql = "NOT #{sql}" if negate
+      sql
     end
     op = key == :links ? "OR" : "AND"
     ?( + conds * " #{op} \n" + ?)
