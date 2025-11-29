@@ -11,8 +11,7 @@ Participant filtering:
     -w, --with CONTACT     Match sender or recipients
     -c, --chat PATTERN     Match chat name
 
-Match handling:
-    -n, --max=NUM          Only print top NUM messages
+Pattern modifiers:
     -C, --smart-case       Case-sensitive only when pattern has uppercase
                            letters. (default, turn off with -i or -I)
     -i, --ignore-case      Case-insensitive matches
@@ -30,10 +29,11 @@ Message filtering:
     -Y, --youtube          Find youtube links
     -S, --soundcloud       Find soundcloud links
     -X, --twitter          Find twitter links
+    -n, --max=NUM          Only print top NUM messages
     -a, --all              Allow calling with no conditions
                            (will print every message unless -n)
 
-Output formatting:
+Presentation:
     --[no-]color           Enable/disable color output
                            (default: yes if tty)
     -o, --capture [EXPR]   Print only $& or EXPR
