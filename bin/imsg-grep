@@ -357,7 +357,7 @@ begin
       text  = @capture.gsub(/\\(\d)/){ c.capture! match[$1.to_i] }
     else
       rx_links = (/#{[ourl, url].compact.map{Regexp.escape it}*?|}/ if link)
-      has_link = text =~ rx_links if link
+      has_link = link && text =~ rx_links
       # hightlight matches in text, first replacing links with colored versions from above
       text = text.cleave(rx_links).each_slice(2).flat_map do |s, u|
         msg_text = highlight(s, rx_highlight, ->a{a}, ->b{c.match! b}) # hilight the message part that is not link
