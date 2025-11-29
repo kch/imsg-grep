@@ -16,8 +16,8 @@ Pattern modifiers:
                            letters. (default, turn off with -i or -I)
     -i, --ignore-case      Case-insensitive matches
     -I, --no-ignore-case   Case-sensitive matches
-    -l, --literal          Literal string match, no regex
-    -x, --regexp           Regexp match (default, turn off with -l)
+    -q, --literal          Literal string match, no regex
+    -x, --regexp           Regexp match (default, turn off with -q)
     -E, --exact            Match full string only
                            Affects next participant filter only
                            No effect on message patterns
@@ -41,7 +41,7 @@ Presentation:
                            when link available
     -m, --no-meta          Print only text or capture
                            No from/to headers, link details
-    -1, --one-line         [from -> to] message, newlines removed
+    -l, --one-line         [from -> to] message, newlines removed
     -j, --json             JSON output
     -P, --payload          Include payload in JSON
     -V, --reverse          Reverse sort order (oldest first)
@@ -87,11 +87,11 @@ CONTACT matches a contact's address book information: You can give part of a nam
 
 Smart-case is the default case, which means case-insensitive, unless upcase letters present.
 
-Use -l to match literal strings, -i and -I to change case sensitivity.
+Use -q to match literal strings, -i and -I to change case sensitivity.
 
-Pattern flags (-iICxl) affect all subsequent options. So:
+Pattern flags (-iICxq) affect all subsequent options. So:
 
-  -Ilf Andy -xit 'pedro|bob' -cfoo
+  -Iqf Andy -xit 'pedro|bob' -cfoo
 
 matches literal case-sensitive 'Andy' sender, and case-insensitive regexp recipient, and chat name too.
 
@@ -110,9 +110,9 @@ When its a format string: "foo $1 bar $2", interpolates the captures.
 --o "$3, $2"
 Only works if single pattern given
 
--l,-x only affect subsequent patterns.
+-q, -x only affect subsequent patterns.
 
-can use -x -to a.aa -l -to bbbb
+can use -x -to a.aa -q -to bbbb
 
 -f a -f b is OR, ie, same opts combine as or. diff opts genereally combine as AND
 
