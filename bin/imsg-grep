@@ -314,18 +314,19 @@ begin
   end
 
   # stylesheets :P
-  def Rlink(s)        = R(s).green
-  def RHlink(s)       = R(s).green.bright
-  def RHmatch(s)      = R(s).magenta.bright
-  def RHcapture(s)    = R(s).red.bright
-  def Rattachs(s)     = R(s).cyan
-  def ROtime(s)       = R(s).bright.blue
-  def ROfrom(s)       = R(s).yellow
-  def ROto(s)         = R(s).yellow.bright
-  def Rlabel(s)       = R(s).yellow
-  def Rvalue(s)       = R(s).yellow.bright
-  def RlinkTitle(s)   = R(s).cyan.bright
-  def RlinkSummary(s) = R(s).cyan
+  c = Object.new
+  def c.link(s)         = R(s).green
+  def c.link!(s)        = R(s).green.bright
+  def c.match!(s)       = R(s).magenta.bright
+  def c.capture!(s)     = R(s).red.bright
+  def c.attachs(s)      = R(s).cyan
+  def c.l_time(s)       = R(s).bright.blue
+  def c.l_from(s)       = R(s).yellow
+  def c.l_to(s)         = R(s).yellow.bright
+  def c.label(s)        = R(s).yellow
+  def c.value(s)        = R(s).yellow.bright
+  def c.link_title(s)   = R(s).cyan.bright
+  def c.link_summary(s) = R(s).cyan
 
   # to highlight all matches in text, inside links
   rx_highlight       = /#{@conditions[:message]*?|}/ if @conditions[:message].any?
@@ -346,21 +347,21 @@ begin
 
     # highlight matches inside urls
     url,  ourl  = link&.values_at(:url, :original_url)
-    curl, courl = [url, ourl].map { highlight(it, rx_link_highlights, ->a{Rlink a}, ->b{RHlink b}) }
+    curl, courl = [url, ourl].map { highlight(it, rx_link_highlights, ->a{c.link a}, ->b{c.link! b}) }
 
     text = text.to_s.dup
     if @capture_link && url  # captured links replace text
       text = curl
     elsif @capture    # replace text with eval'd capture output string
       match = @capture_pat.match text
-      text  = @capture.gsub(/\\(\d)/){ RHcapture match[$1.to_i] }
+      text  = @capture.gsub(/\\(\d)/){ c.capture! match[$1.to_i] }
     else
       rx_links = (/#{[ourl, url].compact.map{Regexp.escape it}*?|}/ if link)
       has_link = text =~ rx_links if link
       # hightlight matches in text, first replacing links with colored versions from above
       text = text.cleave(rx_links).each_slice(2).flat_map do |s, u|
-        msg_text = highlight(s, rx_highlight, ->a{a}, ->b{RHmatch b}) # hilight the message part that is not link
-        msg_url  = { ourl => courl, url => curl}[u]                   # urls highlighted earlier, use that
+        msg_text = highlight(s, rx_highlight, ->a{a}, ->b{c.match! b}) # hilight the message part that is not link
+        msg_url  = { ourl => courl, url => curl}[u]                    # urls highlighted earlier, use that
         [msg_text, msg_url]
       end.join
       # append whole url if not fully present in text (missing protocol etc)
@@ -368,13 +369,13 @@ begin
     end
 
     text = text.gsub(/\p{Space}*\R\p{Space}*/, " ").strip if @one_line
-    text = Rattachs("[attachments]") if has_attachments && text =~ /\A\uFFFC*\z/ # if text is empty or only object marker
+    text = c.attachs("[attachments]") if has_attachments && text =~ /\A\uFFFC*\z/ # if text is empty or only object marker
 
     if @no_meta # oneline included, already onelined above
       puts text
     elsif @one_line
       to = chat_name.to_s.empty? ? to*', ' : chat_name
-      puts "#{ROtime time} [#{ROfrom from} -> #{ROto to}]: #{text}"
+      puts "#{c.l_time time} [#{c.l_from from} -> #{c.l_to to}]: #{text}"
     else
       nn      = "\n\n"
       title   = link&.dig :title
@@ -386,10 +387,10 @@ begin
         With:   (to*', ' if is_group_chat),
         Chat: chat_name,
         Date: time
-      }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{Rlabel k}: #{Rvalue v}" }*?\n
+      }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{c.label k}: #{c.value v}" }*?\n
       out << nn << wrap(text, 2)
-      out << nn << RlinkTitle(wrap(title, 2)) if title
-      out << nn << RlinkSummary(wrap(summary, 2)) if summary
+      out << nn << c.link_title(wrap(title, 2)) if title
+      out << nn << c.link_summary(wrap(summary, 2)) if summary
       out << nn
       puts out
     end
