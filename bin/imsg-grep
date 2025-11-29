@@ -117,10 +117,10 @@ begin
     in Sep # ignore; `arg:` will handle .rest just fine
     in label: "since", value:    then add_cond :since, parse_date(value)
     in label: "until", value:    then add_cond :until, parse_date(value)
-    in label: "to", value:       then add_cond :to,   mk_regexp(value)
-    in label: "from", value:     then add_cond :from, mk_regexp(value)
-    in label: "with", value:     then add_cond :with, mk_regexp(value)
-    in label: "chat", value:     then add_cond :chat, mk_regexp(value)
+    in label: "to", value:       then add_cond :to,    mk_regexp(value)
+    in label: "from", value:     then add_cond :from,  mk_regexp(value)
+    in label: "with", value:     then add_cond :with,  mk_regexp(value)
+    in label: "chat", value:     then add_cond :chat,  mk_regexp(value)
     in label: "smart-case"       then @case = :smart
     in label: "ignore-case"      then @case = :ignore
     in label: "no-ignore-case"   then @case = :sensitive
