@@ -97,8 +97,8 @@ end
 ### begin option parsing #######################################################
 ################################################################################
 begin
-  read_base = ->f{ IO.read(__dir__ + "/../#{f}") }
-  HELP = read_base["HELP"].gsub("PROG", File.basename($0))
+  def read_base(f) = IO.read(__dir__ + "/../#{f}")
+  HELP = read_base("HELP").gsub("PROG", File.basename($0))
   optlist = Strop.parse_help HELP[/.*~~/m]
   optlist << Optdecl[:D, :debug] # hidden opt
   optlist << Optdecl[:opts] # dev opt
@@ -146,7 +146,7 @@ begin
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "utc"              then @utc = true
     in label: "help"             then puts HELP; exit
-    in label: "help-dates"       then puts read_base["HELP_DATES"]; exit
+    in label: "help-dates"       then puts read_base("HELP_DATES"); exit
     in label: "debug"            then @debug = true
 
     in arg:
