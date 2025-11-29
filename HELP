@@ -37,7 +37,8 @@ Presentation:
     --[no-]color           Enable/disable color output
                            (default: yes if tty)
     -o, --capture [EXPR]   Print only $& or EXPR
-    -m, --message-only     Only print message text
+    -m, --no-meta          Print only text or capture
+                           No from/to headers, link details
     -1, --one-line         [from -> to] message, newlines removed
     -j, --json             JSON output
     -P, --payload          Include payload in JSON
