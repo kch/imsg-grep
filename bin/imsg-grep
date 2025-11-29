@@ -263,7 +263,11 @@ begin
     ORDER BY unix_time #{@reverse ? 'ASC' : 'DESC'}
     #{limit}
   SQL
-  IO.popen(['bat', '-l', 'sql'], 'w', out: :err) { it << sql } if @debug
+
+  if @debug
+    bat = `hash bat 2>/dev/null` && $?.success? ? ["bat", '-l', 'sql'] : "cat"
+    IO.popen(bat, 'w', out: :err) { it << sql }
+  end
 
   Messages.init
   found = Messages.db.select_hashes(sql)
