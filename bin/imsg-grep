@@ -417,18 +417,23 @@ begin
       text << "\n\n" << curl if link && !has_link
     end
 
-    text = text.gsub(/\p{Space}*\R\p{Space}*/, " ").strip if @one_line
+    oneline = ->s { s.gsub(/\p{Space}*\R\p{Space}*/, " ").strip }
+    text = oneline[text] if @one_line
     text = c.attachs("[attachments]") if has_attachments && text =~ /\A\uFFFC*\z/ # if text is empty or only object marker
+
+    unless @no_meta
+      nn      = "\n\n"
+      title   = link&.dig :title
+      summary = link&.dig :summary
+    end
 
     if @no_meta # oneline included, already onelined above
       puts text
     elsif @one_line
+      text << " #{c.link_summary(oneline[title])}" if title
       to = chat_name.to_s.empty? ? to*', ' : chat_name
       puts "#{c.l_time time} [#{c.l_from from} -> #{c.l_to to}]: #{text}"
     else
-      nn      = "\n\n"
-      title   = link&.dig :title
-      summary = link&.dig :summary
       out = {
         GUID: (guid if @debug),
         From: from,
