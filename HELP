@@ -1,67 +1,67 @@
 Usage: PROG [options ...] [PATTERN ...]
 
 Date filtering:
-    -d, --since DATE       Match after DATE
-    -u, --until DATE       Match before DATE
-    -Z, --utc              Parse and print dates as UTC
+    -d, --since DATE        Match after DATE
+    -u, --until DATE        Match before DATE
+    -Z, --utc               Parse and print dates as UTC
 
 Participant filtering:
-    -t, --to CONTACT       Match recipients
-    -f, --from CONTACT     Match sender
-    -w, --with CONTACT     Match sender or recipients
-    -c, --chat PATTERN     Match chat name
+    -t, --to CONTACT        Match recipients
+    -f, --from CONTACT      Match sender
+    -w, --with CONTACT      Match sender or recipients
+    -c, --chat PATTERN      Match chat name
 
 Pattern modifiers:
-    -C, --smart-case       Case-sensitive only when pattern has uppercase
-                           letters. (default, turn off with -i or -I)
-    -i, --ignore-case      Case-insensitive matches
-    -I, --no-ignore-case   Case-sensitive matches
-    -q, --literal          Literal string match, no regex
-    -x, --regexp           Regexp match (default, turn off with -q)
-    -v, --invert-match     Negate next pattern
-    -E, --exact            Match full string only
-                           Affects next pattern only
-    -A, --and=[PATTERN]    Must also appear with previous condition
-    -O, --or=[PATTERN]     Either previous or next condition may occur
-                           -f x --or y is valid, as well as -f x --or -f y
-                           Can mix too like -fX -O -cY
-                           See --help-bools for more
+    -C, --smart-case        Case-sensitive only when pattern has uppercase
+                            letters. (default, turn off with -i or -I)
+    -i, --ignore-case       Case-insensitive matches
+    -I, --no-ignore-case    Case-sensitive matches
+    -q, --literal           Literal string match, no regex
+    -x, --regexp            Regexp match (default, turn off with -q)
+    -v, --invert-match      Negate next pattern
+    -E, --exact             Match full string only
+                            Affects next pattern only
+    -A, --and=[PATTERN]     Must also appear with previous condition
+    -O, --or=[PATTERN]      Either previous or next condition may occur
+                            -f x --or y is valid, as well as -f x --or -f y
+                            Can mix too like -fX -O -cY
+                            See --help-bools for more
 
 Message filtering:
-    -M, --message=PATTERN  Match message text. Generally implied, but
-                           good for booleans: -f x --or -M y
-    -s, --sent             Only match sent
-    -r, --received         Only match received
-    -L, --links[=URL]      Find links
-    -Y, --youtube          Find youtube links
-    -S, --soundcloud       Find soundcloud links
-    -X, --twitter          Find twitter links
-    --service=SRV          One of all|imessage|rcs|sms
-                           (default: all)
-    -n, --max=NUM          Only print top NUM messages
-    -a, --all              Allow calling with no conditions
-                           (will print every message unless -n)
+    -M, --message=PATTERN   Match message text. Generally implied, but
+                            good for booleans: -f x --or -M y
+    -s, --sent              Only match sent
+    -r, --received          Only match received
+    -L, --links[=URL]       Find links
+    -Y, --youtube           Find youtube links
+    -S, --soundcloud        Find soundcloud links
+    -X, --twitter           Find twitter links
+    --service=SRV           One of all|imessage|rcs|sms
+                            (default: all)
+    -n, --max=NUM           Only print top NUM messages
+    -a, --all               Allow calling with no conditions
+                            (will print every message unless -n)
 
 Presentation:
-    --[no-]color           Enable/disable color output
-                           (default: yes if tty)
-    -W, --no-wrap          Don't wrap text
-    -l, --one-line         [from -> to] message, newlines removed
-                           with --json, disable pretty print
-    -U, --urls             Print only URLs in place of message text
-                           when link available
-    -m, --no-meta          Print only text or capture
-                           No from/to headers, link details
-    -k, --count            Print total messges found at the end
-    -o, --capture [EXPR]   Print only matched string, or EXPR
-    -j, --json             JSON output
-    -P, --payload          Include payload in JSON
-    -V, --reverse          Reverse sort order (oldest first)
+    --[no-]color            Enable/disable color output
+                            (default: yes if tty)
+    -W, --no-wrap           Don't wrap text
+    -l, --one-line          [from -> to] message, newlines removed
+                            with --json, disable pretty print
+    -U, --urls              Print only URLs in place of message text
+                            when link available
+    -m, --no-meta           Print only text or capture
+                            No from/to headers, link details
+    -k, --count             Print total messges found at the end
+    -o, --capture [EXPR]    Print only matched string, or EXPR
+    -j, --json              JSON output
+    -P, --payload           Include payload in JSON
+    -V, --reverse           Reverse sort order (oldest first)
 
 Other:
-    -R, --reset            Clear and rebuild cache
-    -h, --help             Show this help
-    --help-dates           Show detailed DATE help
+    -R, --reset             Clear and rebuild cache
+    -h, --help              Show this help
+    --help-dates            Show detailed DATE help
 
 Conditions for --from, --chat, --service are OR'd with others from same option.
 --links, -Y, -X, -S too are all OR'd together.
