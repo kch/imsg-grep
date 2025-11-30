@@ -167,18 +167,18 @@ begin
     in label: "no-ignore-case"   then @case = :sensitive
     in label: "literal"          then @mode = :literal
     in label: "regexp"           then @mode = :regexp
-    in label: "capture", value:  then @capture      = parse_capture(value)
-    in label: "exact"            then @exact        = opt
-    in label: "invert-match"     then @negate       = true
-    in label: "max", value:      then @allow_all    = true; @limit = parse_p_int(value)
-    in label: "all"              then @allow_all    = true
-    in label: "urls"             then @capture_link = true
-    in label: "no-meta"          then @no_meta      = true
-    in label: "one-line"         then @one_line     = true
-    in label: "reverse"          then @reverse      = true
-    in label: "utc"              then @utc          = true
-    in label: "json"             then @json         = true
-    in label: "payload"          then @json         = true, @payload = true
+    in label: "capture", value:  then @capture   = parse_capture(value)
+    in label: "exact"            then @exact     = opt
+    in label: "invert-match"     then @negate    = true
+    in label: "max", value:      then @allow_all = true; @limit = parse_p_int(value)
+    in label: "all"              then @allow_all = true
+    in label: "urls"             then @urls      = true
+    in label: "no-meta"          then @no_meta   = true
+    in label: "one-line"         then @one_line  = true
+    in label: "reverse"          then @reverse   = true
+    in label: "utc"              then @utc       = true
+    in label: "json"             then @json      = true
+    in label: "payload"          then @json      = true, @payload = true
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "help"             then puts HELP; exit
     in label: "help-dates"       then puts read_base("HELP_DATES"); exit
@@ -388,7 +388,7 @@ begin
     curl, courl = [url, ourl].map { highlight(it, rx_link_highlight, :link, :link!) }
 
     text = text.to_s.dup
-    if @capture_link && url  # captured links replace text
+    if @urls && url  # captured links replace text
       text = curl
     elsif @capture    # replace text with eval'd capture output string
       match = @capture_pat.match text
