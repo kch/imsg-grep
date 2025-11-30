@@ -21,6 +21,7 @@ require_relative "../lib/messages"
 include Strop::Exports
 
 ### initial values and defaults
+PROG = File.basename($0)
 @utc = false
 @case = :smart
 @mode = :regexp
@@ -63,8 +64,8 @@ def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: !$stdout.tty?)
   end*?\n
 end
 
-def warn!(s) = $stderr.puts("Warning: #{s}")
-
+def warn!(s) = $stderr.puts("#{PROG}: warning: #{s}")
+def err!(s, prefix="error: ") = $stderr.puts("#{PROG}: #{prefix}#{s}")
 
 ################################################################################
 ### parse helpers ##############################################################
@@ -73,7 +74,7 @@ def warn!(s) = $stderr.puts("Warning: #{s}")
 def parse_date(str, utc = @utc)
   DateArg.parse(str, utc)
 rescue DateArg::Error
-  raise OptionError, "Invalid date #{str}; Use YYYY-MM-DD, or relative dates: 1y4m2d; See --help-dates"
+  raise OptionError, "invalid date #{str} (format: yyyy-mm-dd or 1y4m2d; see --help-dates)"
 end
 
 def parse_p_int(str)
@@ -87,13 +88,14 @@ def parse_capture(str)
   when nil                  then '\0'
   when /\A\d(,\d)*\z/       then str.gsub(/(?=\d)/, ?\\).gsub(",", " ") # 1 or 1,2; "1,2" => "\1 \2"; 0 == $&
   when /(?<!\\)\\[&\d`'&+]/ then str
-  else raise OptionError, "Invalid capture format: #{str}. Use '1,2' or '\\1 \\2'"
+  else raise OptionError, "invalid capture expression: #{str} (format: '1,2' or '\\1 \\2')"
   end
 end
 
 # LIKE is too much of a mess. ASCII-insensitive, only sensitive option is GLOB.
 # We'll be regexing everything, even literals, at maybe some perf cost.
-def mk_regexp(pattern)
+def mk_regexp(src)
+  pattern = src
   case_ = @case
   case_ = /\p{Upper}/ =~ pattern ? :sensitive : :ignore if case_ == :smart
   pattern = Regexp.escape(pattern) if @mode == :literal
@@ -101,7 +103,7 @@ def mk_regexp(pattern)
   flags = [Regexp::IGNORECASE] if case_ == :ignore
   Regexp.new(pattern, *flags)
 rescue RegexpError => e
-  raise OptionError, "Invalid regular expression (#{pattern}): #{e.message}"
+  raise OptionError, "invalid regular expression: #{src} (#{e.message})"
 end
 
 def add_cond(key, term, negate: false, via:)
@@ -115,12 +117,13 @@ end
 
 def repeat_cond(term, negate: false, via:)
   last = @conditions.last
-  raise OptionError, "--#{@next_bool} attemped with non-pattern condition: #{last.opt._name}" unless Regexp === last.term
+  raise OptionError, "no previous condition to apply --#{@next_bool} to" unless last
+  raise OptionError, "--#{@next_bool} attemped with non-pattern condition #{last.opt._name}" unless Regexp === last.term
   add_cond last.key, term, negate:, via:
 end
 
 def next_bool op
-  raise OptionError, "--#{@next_bool} followed by --#{op}" if @next_bool
+  raise OptionError, "--#{@next_bool} with no argument followed by --#{op}" if @next_bool
   @next_bool = op
 end
 
@@ -129,7 +132,7 @@ end
 ################################################################################
 begin
   def read_base(f) = IO.read(__dir__ + "/../#{f}")
-  HELP = read_base("HELP").gsub("PROG", File.basename($0))
+  HELP = read_base("HELP").gsub("PROG", PROG)
   HELP_OPTS = HELP[/.*?(?=~~)/m].strip
   optlist = Strop.parse_help HELP_OPTS
   optlist << Optdecl[:D, :debug] # hidden opt
@@ -203,17 +206,17 @@ begin
 ################################################################################
 
   if @conditions.empty? && !@allow_all
-    raise OptionError, "No filter conditions given. Use --all to allow" # too much stuff
+    raise OptionError, "no filter conditions given (use --all to allow)" # too much stuff
   end
 
   if @conditions.atomics(:from_me).map(&:term).uniq.size > 1
-    raise OptionError, "Cannot use --sent and --received together" # empty result
+    raise OptionError, "cannot use --sent and --received together" # empty result
   end
 
   # warn multiple dates
   d0, d1 = ds = [@conditions.atomics(:since), @conditions.atomics(:until)]
-  warn! "multiple since dates given. Most recent date wins"  if d0.size > 1
-  warn! "multiple until dates given. Least recent date wins" if d1.size > 1
+  warn! "multiple since dates given (most recent date wins)"  if d0.size > 1
+  warn! "multiple until dates given (least recent date wins)" if d1.size > 1
 
   # try to warn date conflicts: since > until
   begin # if a mix of Time & Date, sorting/comparison will fail, so we just bail
@@ -223,7 +226,7 @@ begin
   rescue ArgumentError
     bad_dates = nil
   end
-  raise OptionError, "Since date must be before until date" if bad_dates
+  raise OptionError, "since date must be before until date" if bad_dates
 
   # ignore request for all links when already getting more specific site links
   # -L(noarg) + -[YSX]|Larg, kinda useless
@@ -231,7 +234,7 @@ begin
   if any_links.any? && site_links.any?
     any_links.each{ @conditions.delete it }
     overrides = site_links.map{ [it.opt._name, it.opt.value].compact*' ' }
-    warn! "ignoring #{any_links[0].opt._name}; overriden by #{overrides.join(', ')}"
+    warn! "ignoring #{any_links[0].opt._name} (overriden by #{overrides.join(', ')})"
   end
 
   # require mag pattern for -o
@@ -242,12 +245,12 @@ begin
     *pats, @capture_pat = aconds.map(&:term) # take last pattern for capture refs, rest for warn
     bool_note = (@conditions.on(:message) - aconds).any?
     raise OptionError, "#{result[:capture]._name} requires a message pattern#{' outside boolean expressions' if bool_note}" unless @capture_pat
-    warn! "#{result[:capture]._name} used with multiple message patterns. Will capture from last." unless pats.empty?
+    warn! "#{result[:capture]._name} used with multiple message patterns (will capture from last)" unless pats.empty?
   end
 
-  @negate    and warn! "last #{result[[:invert_match]].last._name} not followed by pattern, disregarded"
-  @exact     and warn! "last #{result[[:exact]].last._name} not followed by pattern, disregarded"
-  @next_bool and warn! "last #{result.opts.reverse_each.find{ %w[ and or ].include? it.label }._name} not followed by pattern, disregarded"
+  @negate    and warn! "last #{result[[:invert_match]].last._name} disregarded (not followed by pattern)"
+  @exact     and warn! "last #{result[[:exact]].last._name} disregarded (not followed by pattern)"
+  @next_bool and warn! "last #{result.opts.reverse_each.find{ %w[ and or ].include? it.label }._name} disregarded (not followed by pattern)"
 
 
 ################################################################################
@@ -441,7 +444,7 @@ begin
   exit found.any? ? 0 : 1
 
 rescue OptionError => e
-  $stderr.puts "Error: " + e.message
-  $stderr.puts "See --help for usage information"
+  err! e.message.sub(/^./){ $&.downcase } # strop using upcases but we aren't; not ready to change this on strop yet
+  err! "see --help for usage information", nil
   exit 64 # cf. man 3 sysexits
 end

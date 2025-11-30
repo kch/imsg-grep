@@ -9,7 +9,7 @@ class Strop::Result
   def standalone(label)
     labels = opts.map(&:label)
     return unless labels.include?(label) && (labels - [label]).any?
-    raise OptionError, "Cannot use #{self[label]._name} with other options"
+    raise OptionError, "cannot use #{self[label]._name} with other options"
   end
 
   # Ensures that options from different groups are not used together.
@@ -22,7 +22,7 @@ class Strop::Result
     labels = opts.map(&:label)
     conflicts = groups.map{ [*it] & labels }.reject(&:empty?)
     return unless conflicts.size > 1
-    raise OptionError, "Cannot use together: #{conflicts.flatten.map{self[it]._name}.join(', ')}"
+    raise OptionError, "cannot use together: #{conflicts.flatten.map{self[it]._name}.join(', ')}"
   end
 
   # Compacts duplicate single-occurrence options by keeping only the last occurrence.
@@ -34,7 +34,7 @@ class Strop::Result
   def compact_singles!(*labels)
     labels.flatten.filter_map{ (os = opts[[it]]).size > 1 and [it, os] }.each do |label, opts|
       names = opts.map(&:_name).uniq.join(", ")
-      warn! "multiple #{names} options specified. Last takes precedence."
+      warn! "multiple #{names} options specified (last takes precedence)"
       replace self - opts[...-1]
     end
   end
