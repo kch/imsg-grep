@@ -119,6 +119,11 @@ def repeat_cond(term, negate: false, via:)
   add_cond last.key, term, negate:, via:
 end
 
+def next_bool op
+  raise OptionError, "--#{@next_bool} followed by --#{op}" if @next_bool
+  @next_bool = op
+end
+
 ################################################################################
 ### begin option parsing #######################################################
 ################################################################################
@@ -153,10 +158,10 @@ begin
     in label: "youtube"          then add_cond :links, :youtube, via: opt
     in label: "soundcloud"       then add_cond :links, :soundcloud, via: opt
     in label: "twitter"          then add_cond :links, :twitter, via: opt
-    in label: "and", value:nil   then @next_bool = :and
-    in label: "or",  value:nil   then @next_bool = :or
-    in label: "and", value:      then @next_bool = :and; repeat_cond mk_regexp(value), negate: consume(:@negate), via: opt
-    in label: "or",  value:      then @next_bool = :or;  repeat_cond mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "and", value:nil   then next_bool :and
+    in label: "or",  value:nil   then next_bool :or
+    in label: "and", value:      then next_bool :and; repeat_cond mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "or",  value:      then next_bool :or;  repeat_cond mk_regexp(value), negate: consume(:@negate), via: opt
     in label: "smart-case"       then @case = :smart
     in label: "ignore-case"      then @case = :ignore
     in label: "no-ignore-case"   then @case = :sensitive
