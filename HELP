@@ -22,8 +22,15 @@ Pattern modifiers:
     -E, --exact            Match full string only
                            Affects next participant filter only
                            No effect on message patterns
+    -A, --and=[PATTERN]    Must also appear with previous condition
+    -O, --or=[PATTERN]     Either previous or next condition may occur
+                           -f x --or y is valid, as well as -f x --or -f y
+                           Can mix too like -fX -O -cY
+                           See --help-bools for more
 
 Message filtering:
+    -M, --message=PATTERN  Match message text. Generally implied, but
+                           good for booleans: -f x --or -M y
     -s, --sent             Only match sent
     -r, --received         Only match received
     -L, --links[=URL]      Find links

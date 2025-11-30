@@ -26,16 +26,25 @@ include Strop::Exports
 @mode = :regexp
 @exact = false
 @negate = false
+@next_bool = nil
 @conditions = []
 
+class Cond < Array
+  %i[ key term bincon negate opt ].zip(0..).each do |m, i|
+    define_method(m){ self[i] }
+    define_method("#{m}="){|v| self[i] = v }
+  end
+end
+
 class << @conditions
-  def [](group, ...) = Symbol===group ? filter_map{|k,c,*| c if k == group } : super
-  def tuples(group)  = filter_map{|k, *xs| xs if k == group }
+  def on(key)       = filter{|k,| k == key }
+  def atomics(key)  = filter{|k,_,b,n,| k == key && b.nil? && !n } # conds without a connective operator
+  def positive(key) = filter{|k,_,_,n,| k == key && !n } # conds without negation
 end
 
 ### tiny helpers
 
-def consume(ivarname) = instance_variable_get(ivarname).tap{ instance_variable_set(ivarname, false) }
+def consume(ivarname) = instance_variable_get(ivarname).tap{ instance_variable_set(ivarname, nil) }
 
 # wrap and indent text, respecting SGR sequences; only if tty
 def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: !$stdout.tty?)
@@ -96,8 +105,19 @@ rescue RegexpError => e
   raise OptionError, "Invalid regular expression (#{pattern}): #{e.message}"
 end
 
-def add_cond(key, value, negate: false)
-  @conditions << [key, value, negate]
+def add_cond(key, term, negate: false, via:)
+  bincon = consume(:@next_bool)
+  if bincon
+    raise OptionError, "no previous condition to apply --#{bincon} to" unless @conditions.last
+    @conditions.last.bincon ||= "" # generates no sql but evals true
+  end
+  @conditions << Cond[key, term, bincon, (:not if negate), via]
+end
+
+def repeat_cond(term, negate: false, via:)
+  last = @conditions.last
+  raise OptionError, "--#{@next_bool} attemped with non-pattern condition: #{last.opt._name}" unless Regexp === last.term
+  add_cond last.key, term, negate:, via:
 end
 
 ################################################################################
@@ -116,50 +136,53 @@ begin
   json_opts    = %w[ json payload ]
   result.exclusive json_opts, text_opts
   result.exclusive json_opts, capture_opts
-  result.exclusive "sent", "received"
-  result.compact_singles! %w[ max capture since until ]
+  result.compact_singles! %w[ max capture ]
 
   for opt in result
     case opt
     in Sep # ignore; `arg:` will handle .rest just fine
-    in label: "since", value:    then add_cond :since, parse_date(value)
-    in label: "until", value:    then add_cond :until, parse_date(value)
-    in label: "to", value:       then add_cond :to,    mk_regexp(value), negate: consume(:@negate)
-    in label: "from", value:     then add_cond :from,  mk_regexp(value), negate: consume(:@negate)
-    in label: "with", value:     then add_cond :with,  mk_regexp(value), negate: consume(:@negate)
-    in label: "chat", value:     then add_cond :chat,  mk_regexp(value), negate: consume(:@negate)
+    in label: "since", value:    then add_cond :since, parse_date(value), via: opt
+    in label: "until", value:    then add_cond :until, parse_date(value), via: opt
+    in label: "to",    value:    then add_cond :to,    mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "from",  value:    then add_cond :from,  mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "with",  value:    then add_cond :with,  mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "chat",  value:    then add_cond :chat,  mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "sent"             then add_cond :from_me, true, via: opt
+    in label: "received"         then add_cond :from_me, false, via: opt
+    in label: "links", value:nil then add_cond :links, true, via: opt
+    in label: "links", value:    then add_cond :links, mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "youtube"          then add_cond :links, :youtube, via: opt
+    in label: "soundcloud"       then add_cond :links, :soundcloud, via: opt
+    in label: "twitter"          then add_cond :links, :twitter, via: opt
+    in label: "and", value:nil   then @next_bool = :and
+    in label: "or",  value:nil   then @next_bool = :or
+    in label: "and", value:      then @next_bool = :and; repeat_cond mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "or",  value:      then @next_bool = :or;  repeat_cond mk_regexp(value), negate: consume(:@negate), via: opt
     in label: "smart-case"       then @case = :smart
     in label: "ignore-case"      then @case = :ignore
     in label: "no-ignore-case"   then @case = :sensitive
     in label: "literal"          then @mode = :literal
     in label: "regexp"           then @mode = :regexp
-    in label: "invert-match"     then @negate = true
-    in label: "exact"            then @exact = opt
-    in label: "max", value:      then @limit = parse_p_int(value); @allow_all = true
-    in label: "all"              then @allow_all = true
-    in label: "sent"             then add_cond :from_me, true
-    in label: "received"         then add_cond :from_me, false
-    in label: "links", value:nil then add_cond :links, true
-    in label: "links", value:    then add_cond :links, mk_regexp(value), negate: consume(:@negate)
-    in label: "youtube"          then add_cond :links, :youtube
-    in label: "soundcloud"       then add_cond :links, :soundcloud
-    in label: "twitter"          then add_cond :links, :twitter
-    in label: "capture", value:  then @capture = parse_capture(value)
+    in label: "capture", value:  then @capture      = parse_capture(value)
+    in label: "exact"            then @exact        = opt
+    in label: "invert-match"     then @negate       = true
+    in label: "max", value:      then @allow_all    = true; @limit = parse_p_int(value)
+    in label: "all"              then @allow_all    = true
     in label: "urls"             then @capture_link = true
-    in label: "no-meta"          then @no_meta = true
-    in label: "one-line"         then @one_line = true
-    in label: "json"             then @json = true
-    in label: "payload"          then @json = true, @payload = true
-    in label: "reverse"          then @reverse = true
+    in label: "no-meta"          then @no_meta      = true
+    in label: "one-line"         then @one_line     = true
+    in label: "reverse"          then @reverse      = true
+    in label: "utc"              then @utc          = true
+    in label: "json"             then @json         = true
+    in label: "payload"          then @json         = true, @payload = true
     in label: "color"            then Rainbow.enabled = opt.yes?
-    in label: "utc"              then @utc = true
     in label: "help"             then puts HELP; exit
     in label: "help-dates"       then puts read_base("HELP_DATES"); exit
     in label: "debug"            then @debug = true
 
-    in arg:
-      eopt = consume :@exact and warn! "dropped #{eopt._name} used before message pattern."
-      add_cond :message, mk_regexp(arg), negate: consume(:@negate)
+    in Arg(arg: _) | Opt(label: "message", value: _)
+      eopt = consume :@exact and warn! "dropped #{eopt._name} used before message pattern"
+      add_cond :message, mk_regexp(opt.value), negate: consume(:@negate), via: opt
 
     in label: "reset"
       Messages.reset_cache
@@ -184,38 +207,52 @@ begin
 ################################################################################
 
   if @conditions.empty? && !@allow_all
-    raise OptionError, "No filter conditions given. Use --all to allow, or see --help"
+    raise OptionError, "No filter conditions given. Use --all to allow" # too much stuff
   end
 
-  # find date conflicts: since > until
-  # Time<=>Date would fail compare below, so we lose precision to make it work (
-  # in most cases, without doing a lot of work. Worst case, empty results.
-  # fine to convert as these values are only use for this check
-  d0, d1 = @conditions[:since].last, @conditions[:until].last
-  d0, d1 = [d0, d1].compact.map(&:to_date) if [d0, d1].map(&:class).uniq.size > 1
-  raise OptionError, "Since date must be before until date" if d0 && d1 && d0 > d1
+  if @conditions.atomics(:from_me).map(&:term).uniq.size > 1
+    raise OptionError, "Cannot use --sent and --received together" # empty result
+  end
+
+  # warn multiple dates
+  d0, d1 = ds = [@conditions.atomics(:since), @conditions.atomics(:until)]
+  warn! "multiple since dates given. Most recent date wins"  if d0.size > 1
+  warn! "multiple until dates given. Least recent date wins" if d1.size > 1
+
+  # try to warn date conflicts: since > until
+  begin # if a mix of Time & Date, sorting/comparison will fail, so we just bail
+    d0, d1 = ds.map{ it.map(&:term).sort }
+    d0, d1 = d0.last, d1.first
+    bad_dates = d0 && d1 && d0 > d1
+  rescue ArgumentError
+    bad_dates = nil
+  end
+  raise OptionError, "Since date must be before until date" if bad_dates
 
   # ignore request for all links when already getting more specific site links
-  # -L(noarg) + -[YSX]|Larg, drops -L
-  links = @conditions[:links]
-  if links.include?(true) && links.uniq.size > 1
-    links.delete(true)
-    overrides = result.opts.select do
-      site_link = %w[ youtube soundcloud twitter ].include?(it.label)
-      pat_link = it.label == "links" && !it.value.nil?
-      site_link || pat_link
-    end.map{ "#{it._name} #{it.value}" }
-    warn! "ignoring #{result[:links]._name}; overriden by #{overrides.join(', ')}"
+  # -L(noarg) + -[YSX]|Larg, kinda useless
+  any_links, site_links = @conditions.atomics(:links).partition{ it.term == true }
+  if any_links.any? && site_links.any?
+    any_links.each{ @conditions.delete it }
+    overrides = site_links.map{ [it.opt._name, it.opt.value].compact*' ' }
+    warn! "ignoring #{any_links[0].opt._name}; overriden by #{overrides.join(', ')}"
   end
 
   # require mag pattern for -o
   # warn -o with multiple msg patterns
   # ignore -v patterns
   if @capture
-    *pats, @capture_pat = @conditions.tuples(:message).filter_map{|c,negate| c unless negate }  # take last pattern for capture refs, rest for warn
-    raise OptionError, "#{result[:capture]._name} requires a message pattern" unless @capture_pat
+    aconds = @conditions.atomics(:message)
+    *pats, @capture_pat = aconds.map(&:term) # take last pattern for capture refs, rest for warn
+    bool_note = (@conditions.on(:message) - aconds).any?
+    raise OptionError, "#{result[:capture]._name} requires a message pattern#{' outside boolean expressions' if bool_note}" unless @capture_pat
     warn! "#{result[:capture]._name} used with multiple message patterns. Will capture from last." unless pats.empty?
   end
+
+  warn! "last -v not followed by pattern, disregarded" if @negate
+  warn! "last --exact not followed by pattern, disregarded" if @exact
+  warn! "last --and/--or not followed by pattern, disregarded" if @next_bool
+
 
 ################################################################################
 ### build sql query ############################################################
@@ -232,29 +269,34 @@ begin
   def match(x, r) = "#{x} REGEXP '#{SQLite3::Database.quote r.to_s}'"
   def match_searchable(x, r) = "EXISTS (SELECT 1 FROM json_each(#{x}) WHERE #{match(:value, r)})"
 
-  sql_cond = @conditions.group_by(&:first).map do |key, conds|
-    conds = conds.map do |_, value, negate|
-      sql = case [key, value]
-      in :since,   _           then date_cmp(:>=, value)
-      in :until,   _           then date_cmp(:<=, value)
-      in :from_me, _           then "is_from_me IS #{value}"
-      in :links, true          then "link IS NOT NULL"
-      in :links, :youtube      then match(:link, %r["https?://((www\.)?youtube\.com|youtu\.be)/]i) # matching inside json, " acts as \A sort of
-      in :links, :soundcloud   then match(:link, %r["https?://(on\.)?soundcloud\.com/]i)
-      in :links, :twitter      then match(:link, %r["https?://(pic\.)?(twitter|x)\.com/]i)
-      in :links,   Regexp      then match(:link, value)
-      in :from,    Regexp      then match_searchable(:sender_searchable, value)
-      in :to,      Regexp      then match_searchable(:recipients_searchable, value)
-      in :with,    Regexp      then match_searchable(:members_searchable, value)
-      in :chat,    Regexp      then match(:chat_name, value)
-      in :message, Regexp      then match(:text, value)
+  groups = @conditions.slice_before{ !(Symbol === it.bincon) }
+
+  singles, grouped = groups.partition{|group| group in [[_, _, nil, *]] }        # singles = a group with single elem, no bin op
+  keyed_singles = singles.flatten(1).group_by(&:first)
+  keyed_singles.each{|k,g| g[1..]&.each{ it.bincon = k == :links ? :or : :and }} # links op default to or, everything else to and; first member doest get op
+  groups = grouped + keyed_singles.values                                        # put it back together
+
+  sql_cond = groups.map do |group|
+    group.map do |key, term, bin_op, not_op|
+      sql = case [key, term]
+      in :since,   _           then date_cmp(:>=, term)
+      in :until,   _           then date_cmp(:<=, term)
+      in :from_me, _           then "is_from_me IS #{term}"
+      in :links,   true        then "link IS NOT NULL"
+      in :links,   :youtube    then match(:link, %r["https?://((www\.)?youtube\.com|youtu\.be)/]i) # matching inside json, " acts as \A sort of
+      in :links,   :soundcloud then match(:link, %r["https?://(on\.)?soundcloud\.com/]i)
+      in :links,   :twitter    then match(:link, %r["https?://(pic\.)?(twitter|x)\.com/]i)
+      in :links,   Regexp      then match(:link, term)
+      in :from,    Regexp      then match_searchable(:sender_searchable, term)
+      in :to,      Regexp      then match_searchable(:recipients_searchable, term)
+      in :with,    Regexp      then match_searchable(:members_searchable, term)
+      in :chat,    Regexp      then match(:chat_name, term)
+      in :message, Regexp      then match(:text, term)
       end
-      sql = "NOT #{sql}" if negate
-      sql
-    end
-    op = key == :links ? "OR" : "AND"
-    ?( + conds * " #{op} \n" + ?)
-  end.join(" AND \n")
+      ops = [bin_op, not_op].compact.join(" ").upcase
+      sql = "#{ops} #{sql}".lstrip
+    end.join("\n  ").then{ "(#{it})" }
+  end.join("\nAND ")
 
   limit = "LIMIT #{@limit}" if @limit
   time_col = @utc ? :utc_time : :local_time
@@ -272,7 +314,7 @@ begin
       utc_time,
       #{time_col} as time
     FROM message_view
-    #{'WHERE ' + sql_cond unless sql_cond.empty?}
+    #{"WHERE\n" + sql_cond unless sql_cond.empty?}
     ORDER BY unix_time #{@reverse ? 'ASC' : 'DESC'}
     #{limit}
   SQL
@@ -330,10 +372,10 @@ begin
   def c.link_summary(s) = R(s).cyan
 
   # to highlight all matches in text, inside links
-  rx_highlight       = /#{@conditions[:message]*?|}/ if @conditions[:message].any?
-  rx_links           = @conditions[:links].select{ Regexp===it }
-  rx_link_highlights = [*rx_links, rx_highlight].compact
-  rx_link_highlights = (/#{rx_link_highlights*?|}/ if rx_link_highlights.any?)
+  m_conds = @conditions.positive(:message).map(&:term)
+  l_conds = @conditions.positive(:links).map(&:term).select{ Regexp===it } + m_conds
+  rx_highlight      = /#{m_conds*?|}/ if m_conds.any?
+  rx_link_highlight = /#{l_conds*?|}/ if l_conds.any?
 
   def highlight(s, r, a, b)
     return unless s
@@ -348,7 +390,7 @@ begin
 
     # highlight matches inside urls
     url,  ourl  = link&.values_at(:url, :original_url)
-    curl, courl = [url, ourl].map { highlight(it, rx_link_highlights, ->a{c.link a}, ->b{c.link! b}) }
+    curl, courl = [url, ourl].map { highlight(it, rx_link_highlight, ->a{c.link a}, ->b{c.link! b}) }
 
     text = text.to_s.dup
     if @capture_link && url  # captured links replace text
