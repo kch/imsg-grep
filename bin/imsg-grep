@@ -130,7 +130,8 @@ end
 begin
   def read_base(f) = IO.read(__dir__ + "/../#{f}")
   HELP = read_base("HELP").gsub("PROG", File.basename($0))
-  optlist = Strop.parse_help HELP[/.*~~/m]
+  HELP_OPTS = HELP[/.*?(?=~~)/m].strip
+  optlist = Strop.parse_help HELP_OPTS
   optlist << Optdecl[:D, :debug] # hidden opt
   optlist << Optdecl[:opts] # dev opt
   result = Strop.parse optlist
@@ -141,6 +142,8 @@ begin
   result.exclusive json_opts, text_opts
   result.exclusive json_opts, capture_opts
   result.compact_singles! %w[ max capture ]
+
+  (puts HELP_OPTS; exit 1) if result.empty?
 
   for opt in result
     case opt
@@ -180,7 +183,7 @@ begin
     in label: "json"             then @json      = true
     in label: "payload"          then @json      = true, @payload = true
     in label: "color"            then Rainbow.enabled = opt.yes?
-    in label: "help"             then puts HELP; exit
+    in label: "help"             then puts HELP_OPTS; exit
     in label: "help-dates"       then puts read_base("HELP_DATES"); exit
     in label: "debug"            then @debug = true
 
