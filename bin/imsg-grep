@@ -64,8 +64,9 @@ def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: (!$stdout.tty?|
   end*?\n
 end
 
-def warn!(s) = $stderr.puts("#{PROG}: warning: #{s}")
-def err!(s, prefix="error: ") = $stderr.puts("#{PROG}: #{prefix}#{s}")
+def info!(s) = $stderr.puts("#{PROG}: #{s}")
+def err!(s)  = info!("error: #{s}")
+def warn!(s) = info!("warning: #{s}")
 
 ################################################################################
 ### parse helpers ##############################################################
@@ -446,6 +447,6 @@ begin
 
 rescue OptionError => e
   err! e.message.sub(/^./){ $&.downcase } # strop using upcases but we aren't; not ready to change this on strop yet
-  err! "see --help for usage information", nil
+  info! "see --help for usage information"
   exit 64 # cf. man 3 sysexits
 end
