@@ -282,7 +282,7 @@ begin
 
   groups = @conditions.slice_before{ !(Symbol === it.bincon) }
 
-  default_or = %i[ links service ] # these conds do OR by default
+  default_or = %i[ links service from chat ] # these conds do OR by default
   singles, grouped = groups.partition{|group| group in [[_, _, nil, *]] } # singles = a group with single elem, no bin op
   keyed_singles = singles.flatten(1).group_by(&:first)
   keyed_singles.each do |k, group|

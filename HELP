@@ -63,6 +63,12 @@ Other:
     -h, --help             Show this help
     --help-dates           Show detailed DATE help
 
+Conditions for --from, --chat, --service are OR'd with others from same option.
+--links, -Y, -X, -S too are all OR'd together.
+
+Everything else is AND'ed by default. Chains of explicit --and/--or combine as
+a single expression. Then get AND'ed with the rest.
+
 ~~H~~
 
 ~~HELP~~
