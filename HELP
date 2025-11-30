@@ -111,11 +111,12 @@ Matches are partial, if you need to match a full name (or email, etc) use regexp
 --capture EXPR
 When EXPR omitted, the entire match is presented.
 When its a number, that capture group is presented.
-When its a format string: "foo $1 bar $2", interpolates the captures.
--o same as -o"$&"
--o1 same as -o"$1"
---o "$3, $2"
+When its a format string: "foo \1 bar \2", interpolates the captures.
+-o same as -o"\0"
+-o1 same as -o"\1"
+--o "\3, \2"
 Only works if single pattern given
+\0 is the full match
 
 -q, -x only affect subsequent patterns.
 

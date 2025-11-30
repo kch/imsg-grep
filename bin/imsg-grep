@@ -84,10 +84,10 @@ end
 
 def parse_capture(str)
   case str
-  when nil            then '\0'
-  when /\A\d(,\d)*\z/ then str.gsub(/(?=\d)/, ?\\).gsub(",", " ") # 1 or 1,2; "1,2" => "$1 $2"; 0 == $&
-  when /\$[&\d]/      then str.gsub(?$, ?\\)
-  else raise OptionError, "Invalid capture format: #{str}. Use '1,2' or '$1 $2'"
+  when nil                  then '\0'
+  when /\A\d(,\d)*\z/       then str.gsub(/(?=\d)/, ?\\).gsub(",", " ") # 1 or 1,2; "1,2" => "\1 \2"; 0 == $&
+  when /(?<!\\)\\[&\d`'&+]/ then str
+  else raise OptionError, "Invalid capture format: #{str}. Use '1,2' or '\\1 \\2'"
   end
 end
 
@@ -393,8 +393,10 @@ begin
     if @urls && url  # captured links replace text
       text = curl
     elsif @capture    # replace text with eval'd capture output string
-      match = @capture_pat.match text
-      text  = @capture.gsub(/\\(\d)/){ c.capture! match[$1.to_i] }
+      m1   = @capture_pat.match text
+      m2   = { ?` => $`, ?' => $', ?& => $&, ?+ => $+ }
+      refs = /\\(?:(\d)|([&`'+]))|\\(\\)/ # 3 = \, 2 = `'&+ refs, 1 = digits
+      text = @capture.gsub(refs){ $3 || c.capture!(m2[$2] || m1[$1.to_i]) }
     else
       rx_links = (/#{[ourl, url].compact.map{Regexp.escape it}*?|}/ if link)
       has_link = link && text =~ rx_links
