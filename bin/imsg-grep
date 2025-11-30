@@ -65,7 +65,6 @@ end
 
 def warn!(s) = $stderr.puts("Warning: #{s}")
 
-def R(...) = Rainbow(...)
 
 ################################################################################
 ### parse helpers ##############################################################
@@ -188,17 +187,7 @@ begin
       Messages.reset_cache
       exit if (result.opts.map(&:label) - ["reset"]).empty? && result.args.empty? # exit if opt used alone
 
-    # dev stuff: Used to see what options are still available
-    in label: "opts"
-      chars = (?0..?z).to_a.grep(/[^\W_]/).map{|c| [c] << R(c).then{ optlist[c]&.label ? it.black.bright : it.green.bright }}
-      puts chars.map(&:last).join(" ")
-      puts
-      longs = chars.map{|c, cc| l = optlist[c]&.label; [R("-").black.bright, cc, R((" --#{l}" if l)).blue].join }
-      per_col = 16
-      longs.fill("", longs.length...((longs.length + per_col - 1) / per_col * per_col)) # fill to multiple for transpose
-      w = longs.map(&:size).max + 4
-      puts longs.map{ "%-#{w}s" % it }.each_slice(per_col).to_a.transpose.map(&:join).join("\n")
-      exit
+    in label: "opts" then optlist.report_usage; exit # dev stuff: Used to see what options are still available
     end
   end
 
@@ -358,18 +347,18 @@ begin
 
   # stylesheets :P
   c = Object.new
-  def c.link(s)         = R(s).green
-  def c.link!(s)        = R(s).green.bright
-  def c.match!(s)       = R(s).magenta.bright
-  def c.capture!(s)     = R(s).red.bright
-  def c.attachs(s)      = R(s).cyan
-  def c.l_time(s)       = R(s).bright.blue
-  def c.l_from(s)       = R(s).yellow
-  def c.l_to(s)         = R(s).yellow.bright
-  def c.label(s)        = R(s).yellow
-  def c.value(s)        = R(s).yellow.bright
-  def c.link_title(s)   = R(s).cyan.bright
-  def c.link_summary(s) = R(s).cyan
+  def c.link(s)         = Rainbow(s).green
+  def c.link!(s)        = Rainbow(s).green.bright
+  def c.match!(s)       = Rainbow(s).magenta.bright
+  def c.capture!(s)     = Rainbow(s).red.bright
+  def c.attachs(s)      = Rainbow(s).cyan
+  def c.l_time(s)       = Rainbow(s).bright.blue
+  def c.l_from(s)       = Rainbow(s).yellow
+  def c.l_to(s)         = Rainbow(s).yellow.bright
+  def c.label(s)        = Rainbow(s).yellow
+  def c.value(s)        = Rainbow(s).yellow.bright
+  def c.link_title(s)   = Rainbow(s).cyan.bright
+  def c.link_summary(s) = Rainbow(s).cyan
 
   # to highlight all matches in text, inside links
   m_conds = @conditions.positive(:message).map(&:term)

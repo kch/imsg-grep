@@ -44,3 +44,19 @@ end
 class Strop::Opt
   def _name = Strop.prefix name # shorthand for prefix
 end
+
+
+class Strop::Optlist
+  def report_usage
+    r     = ->s{ Rainbow(s) }
+    chars = (?0..?z).to_a.grep(/[^\W_]/).map{|c| [c] << r[c].then{ self[c]&.label ? it.black.bright : it.green.bright }}
+    longs = chars.map{|c, cc| l = self[c]&.label; [r["-"].black.bright, cc, r[(" --#{l}" if l)].blue].join }
+    pc    = 16 # results per column
+    ll    = longs.length
+    w     = longs.map(&:size).max + 4
+    longs.fill("", ll...((ll + pc - 1) / pc * pc)) # fill to multiple for transpose
+    puts chars.map(&:last).join(" ")
+    puts
+    puts longs.map{ "%-#{w}s" % it }.each_slice(pc).to_a.transpose.map(&:join).join("\n")
+  end
+end
