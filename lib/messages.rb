@@ -95,7 +95,7 @@ module Messages
     end
 
     # Handle groups table:
-    # - handle_id: hanadle.rowid in chat.db
+    # - handle_id: handle.rowid in chat.db
     # - searchable: JSON array of searchable terms: handles + names
     # - name: contact display name computed from address book
     # - contact_ids: JSON array of contact IDs from address book (unused atm)
@@ -258,32 +258,43 @@ module Messages
         m.payload_data                                                      as payload_data,
         mc.link,
         cm.is_group_chat,
+
+        -- 1. Direct message **from me** → show recipient
+        -- 2. Group chat or message **from me** → show all members
+        -- 3. Direct message **to me** → null recipients (it me!)
+        -- i prefer using these funny conditions as closer to the source than is_group_chat, is_from_me
         CASE
-        WHEN hg_recipient.name IS NOT NULL
-        THEN json_array(hg_recipient.name)
+        WHEN hg_recip.name IS NOT NULL --  is not group chat (is DM)
+        THEN json_array(hg_recip.name) -- fake an array with single recipient
+        -- sender null == is from me, as hg_sender joins on is_from_me=0 → recipients = members
+        -- sender != members means more members → group chat (all chat members are recipients (incl sender))
         WHEN hg_sender.searchable IS NULL OR hg_sender.searchable != cm.members_searchable
         THEN cm.member_names
+         -- recipient is null and is not from me and sender == members = 'tis I the recipient, so null
         ELSE NULL
-        END                                                                 as recipient_names,
-        CASE
-        WHEN hg_recipient.searchable IS NOT NULL
-        THEN hg_recipient.searchable
+        END as recipient_names,                                          -- as recipient_names,  (repeated here for visibility)
+
+        CASE -- same logic
+        WHEN hg_recip.searchable IS NOT NULL
+        THEN hg_recip.searchable
         WHEN hg_sender.searchable IS NULL OR hg_sender.searchable != cm.members_searchable
         THEN cm.members_searchable
         ELSE NULL
-        END                                                                 as recipients_searchable,
+        END as recipients_searchable,                                   --  as recipients_searchable,
+
         hg_sender.name                                                      as sender_name,
-        hg_recipient.name                                                   as recipient_name,
+        hg_recip.name                                                       as recipient_name,
         COALESCE(cm.member_names, json_array())                             as member_names,         -- all chat members
         hg_sender.searchable                                                as sender_searchable,    -- for optional filtering
-        hg_recipient.searchable                                             as recipient_searchable, -- for optional filtering
+        hg_recip.searchable                                                 as recipient_searchable, -- for optional filtering
         cm.members_searchable                                               as members_searchable    -- for optional filtering
+
       FROM _imsg.message m
       JOIN computed mc                      ON m.ROWID = mc.ROWID
       LEFT JOIN _imsg.chat_message_join cmj ON m.ROWID = cmj.message_id
       LEFT JOIN _imsg.chat c                ON cmj.chat_id = c.ROWID
-      LEFT JOIN handle_groups hg_sender     ON m.handle_id = hg_sender.handle_id    AND m.is_from_me = 0
-      LEFT JOIN handle_groups hg_recipient  ON m.handle_id = hg_recipient.handle_id AND m.is_from_me = 1
+      LEFT JOIN handle_groups hg_sender     ON m.handle_id = hg_sender.handle_id AND m.is_from_me = 0
+      LEFT JOIN handle_groups hg_recip      ON m.handle_id = hg_recip.handle_id  AND m.is_from_me = 1
       LEFT JOIN chat_members cm             ON c.ROWID = cm.chat_id
       WHERE
       ((associated_message_type IS NULL OR associated_message_type < 1000)                               -- Exclude associated reaction messages 1000: stickers, 20xx: reactions; 30xx: remove reactions
