@@ -431,8 +431,9 @@ begin
       out << nn
       puts out
     end
+  end # for msgs
 
-  end
+  exit found.any? ? 0 : 1
 
 rescue OptionError => e
   $stderr.puts "Error: " + e.message
