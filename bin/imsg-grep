@@ -185,7 +185,6 @@ begin
     in label: "debug"            then @debug = true
 
     in Arg(arg: _) | Opt(label: "message", value: _)
-      eopt = consume :@exact and warn! "dropped #{eopt._name} used before message pattern"
       add_cond :message, mk_regexp(opt.value), negate: consume(:@negate), via: opt
 
     in label: "reset"
