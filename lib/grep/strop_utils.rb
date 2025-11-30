@@ -20,7 +20,7 @@ class Strop::Result
   # raises OptionError if options from different groups are used together
   def incompatible(*groups)
     labels = opts.map(&:label)
-    conflicts = groups.map{ [*it] & labels }.reject(&:empty?)
+    conflicts = groups.map{ [*it].map{ Strop.name_from_symbol it } & labels }.reject(&:empty?)
     return unless conflicts.size > 1
     raise OptionError, "cannot use together: #{conflicts.flatten.map{self[it]._name}.join(', ')}"
   end
