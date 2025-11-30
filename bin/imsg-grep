@@ -177,7 +177,7 @@ begin
     in label: "capture", value:  then @capture   = parse_capture(value)
     in label: "exact"            then @exact     = opt
     in label: "invert-match"     then @negate    = true
-    in label: "max", value:      then @allow_all = true; @limit = parse_p_int(value)
+    in label: "max", value:      then @allow_all = true; @max = parse_p_int(value)
     in label: "all"              then @allow_all = true
     in label: "urls"             then @urls      = true
     in label: "no-meta"          then @no_meta   = true
@@ -299,7 +299,7 @@ begin
     end.join("\n  ").then{ "(#{it})" }
   end.join("\nAND ")
 
-  limit = "LIMIT #{@limit}" if @limit
+  limit = "LIMIT #{@max}" if @max
   time_col = @utc ? :utc_time : :local_time
   sql = <<~SQL
     SELECT
