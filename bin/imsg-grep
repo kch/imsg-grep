@@ -243,7 +243,7 @@ begin
     warn! "#{result[:capture]._name} used with multiple message patterns. Will capture from last." unless pats.empty?
   end
 
-  @negate    and warn! "last #{result[[:'invert-match']].last._name} not followed by pattern, disregarded"
+  @negate    and warn! "last #{result[[:invert_match]].last._name} not followed by pattern, disregarded"
   @exact     and warn! "last #{result[[:exact]].last._name} not followed by pattern, disregarded"
   @next_bool and warn! "last #{result.opts.reverse_each.find{ %w[ and or ].include? it.label }._name} not followed by pattern, disregarded"
 
