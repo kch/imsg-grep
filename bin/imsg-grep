@@ -437,5 +437,5 @@ begin
 rescue OptionError => e
   $stderr.puts "Error: " + e.message
   $stderr.puts "See --help for usage information"
-  exit 1
+  exit 64 # cf. man 3 sysexits
 end
