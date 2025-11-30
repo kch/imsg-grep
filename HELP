@@ -43,12 +43,13 @@ Message filtering:
 Presentation:
     --[no-]color           Enable/disable color output
                            (default: yes if tty)
-    -o, --capture [EXPR]   Print only matched part or EXPR
+    -W, --no-wrap          Don't wrap text
+    -l, --one-line         [from -> to] message, newlines removed
     -U, --urls             Print only URLs in place of message text
                            when link available
     -m, --no-meta          Print only text or capture
                            No from/to headers, link details
-    -l, --one-line         [from -> to] message, newlines removed
+    -o, --capture [EXPR]   Print only matched string, or EXPR
     -j, --json             JSON output
     -P, --payload          Include payload in JSON
     -V, --reverse          Reverse sort order (oldest first)

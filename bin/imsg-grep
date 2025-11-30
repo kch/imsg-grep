@@ -48,7 +48,7 @@ end
 def consume(ivarname) = instance_variable_get(ivarname).tap{ instance_variable_set(ivarname, nil) }
 
 # wrap and indent text, respecting SGR sequences; only if tty
-def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: !$stdout.tty?)
+def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: (!$stdout.tty?||@no_wrap))
   return s if disable
   sgr = /\e\[[\d;]*m/
   pad = " " * indent
@@ -140,7 +140,7 @@ begin
   result = Strop.parse optlist
 
   capture_opts = %w[ capture ]
-  text_opts    = %w[ no-meta one-line ]
+  text_opts    = %w[ no-meta one-line no-wrap ]
   json_opts    = %w[ json payload ]
   result.incompatible json_opts, text_opts
   result.incompatible json_opts, capture_opts
@@ -180,6 +180,7 @@ begin
     in label: "all"              then @allow_all = true
     in label: "urls"             then @urls      = true
     in label: "no-meta"          then @no_meta   = true
+    in label: "no-wrap"          then @no_wrap   = true
     in label: "one-line"         then @one_line  = true
     in label: "reverse"          then @reverse   = true
     in label: "utc"              then @utc       = true
