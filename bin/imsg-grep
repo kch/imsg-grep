@@ -93,6 +93,14 @@ def parse_capture(str)
   end
 end
 
+def parse_service(str)
+  srvs = %w[ all imessage rcs sms ]
+  srv = srvs.grep(/^#{str.chars.map{ Regexp.escape it }.join(".*?")}/i).first
+  warn! "unknown service: #{str}" if srv.nil? # warn but let through
+  return if srv == "all"                      # default, no filter
+  @service = srv ? /^#{srv}$/i : /^#{str}/i   # fallback to str if none found
+end
+
 # LIKE is too much of a mess. ASCII-insensitive, only sensitive option is GLOB.
 # We'll be regexing everything, even literals, at maybe some perf cost.
 def mk_regexp(src)
@@ -165,6 +173,7 @@ begin
     in label: "youtube"          then add_cond :links, :youtube, via: opt
     in label: "soundcloud"       then add_cond :links, :soundcloud, via: opt
     in label: "twitter"          then add_cond :links, :twitter, via: opt
+    in label: "service", value:  then srv = parse_service(value) and add_cond :service, srv, via: opt
     in label: "and", value:nil   then next_bool :and
     in label: "or",  value:nil   then next_bool :or
     in label: "and", value:      then next_bool :and; repeat_cond mk_regexp(value), negate: consume(:@negate), via: opt
@@ -273,10 +282,14 @@ begin
 
   groups = @conditions.slice_before{ !(Symbol === it.bincon) }
 
-  singles, grouped = groups.partition{|group| group in [[_, _, nil, *]] }        # singles = a group with single elem, no bin op
+  default_or = %i[ links service ] # these conds do OR by default
+  singles, grouped = groups.partition{|group| group in [[_, _, nil, *]] } # singles = a group with single elem, no bin op
   keyed_singles = singles.flatten(1).group_by(&:first)
-  keyed_singles.each{|k,g| g[1..]&.each{ it.bincon = k == :links ? :or : :and }} # links op default to or, everything else to and; first member doest get op
-  groups = grouped + keyed_singles.values                                        # put it back together
+  keyed_singles.each do |k, group|
+    op = default_or.include?(k) ? :or : :and
+    group[1..]&.each{ it.bincon = op }     # first member doest get op
+  end
+  groups = grouped + keyed_singles.values  # put it back together
 
   sql_cond = groups.map do |group|
     group.map do |key, term, bin_op, not_op|
@@ -294,6 +307,7 @@ begin
       in :with,    Regexp      then match_searchable(:members_searchable, term)
       in :chat,    Regexp      then match(:chat_name, term)
       in :message, Regexp      then match(:text, term)
+      in :service, Regexp      then match(:service, term)
       end
       ops = [bin_op, not_op].compact.join(" ").upcase
       sql = "#{ops} #{sql}".lstrip
@@ -313,6 +327,7 @@ begin
       chat_name,
       text,
       link,
+      service,
       utc_time,
       #{time_col} as time
     FROM message_view

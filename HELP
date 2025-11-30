@@ -36,6 +36,8 @@ Message filtering:
     -Y, --youtube          Find youtube links
     -S, --soundcloud       Find soundcloud links
     -X, --twitter          Find twitter links
+    --service=SRV          One of all|imessage|rcs|sms
+                           (default: all)
     -n, --max=NUM          Only print top NUM messages
     -a, --all              Allow calling with no conditions
                            (will print every message unless -n)
