@@ -139,8 +139,8 @@ begin
   capture_opts = %w[ capture ]
   text_opts    = %w[ no-meta one-line ]
   json_opts    = %w[ json payload ]
-  result.exclusive json_opts, text_opts
-  result.exclusive json_opts, capture_opts
+  result.incompatible json_opts, text_opts
+  result.incompatible json_opts, capture_opts
   result.compact_singles! %w[ max capture ]
 
   (puts HELP_OPTS; exit 1) if result.empty?

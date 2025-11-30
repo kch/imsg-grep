@@ -15,10 +15,10 @@ class Strop::Result
   # Ensures that options from different groups are not used together.
   # Each group represents a set of related options, the groups are mutually exclusive.
   # Examples:
-  #   result.exclusive(:verbose, :quiet)                             # --verbose and --quiet can't be used together
-  #   result.exclusive([:json, :pretty], :binary, [:xml, :doctype])  # options from each group don't mix with from others
+  #   result.incompatible(:verbose, :quiet)                             # --verbose and --quiet can't be used together
+  #   result.incompatible([:json, :pretty], :binary, [:xml, :doctype])  # options from each group don't mix with from others
   # raises OptionError if options from different groups are used together
-  def exclusive(*groups)
+  def incompatible(*groups)
     labels = opts.map(&:label)
     conflicts = groups.map{ [*it] & labels }.reject(&:empty?)
     return unless conflicts.size > 1
