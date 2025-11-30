@@ -49,6 +49,7 @@ Presentation:
                            when link available
     -m, --no-meta          Print only text or capture
                            No from/to headers, link details
+    -k, --count            Print total messges found at the end
     -o, --capture [EXPR]   Print only matched string, or EXPR
     -j, --json             JSON output
     -P, --payload          Include payload in JSON

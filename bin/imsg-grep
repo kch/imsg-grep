@@ -141,7 +141,7 @@ begin
   result = Strop.parse optlist
 
   capture_opts = %w[ capture ]
-  text_opts    = %w[ no-meta one-line no-wrap ]
+  text_opts    = %w[ no-meta one-line no-wrap count ]
   json_opts    = %w[ json payload ]
   result.incompatible json_opts, text_opts
   result.incompatible json_opts, capture_opts
@@ -183,6 +183,7 @@ begin
     in label: "no-meta"          then @no_meta   = true
     in label: "no-wrap"          then @no_wrap   = true
     in label: "one-line"         then @one_line  = true
+    in label: "count"            then @count     = true
     in label: "reverse"          then @reverse   = true
     in label: "utc"              then @utc       = true
     in label: "json"             then @json      = true
@@ -372,6 +373,7 @@ begin
   def c.value(s)        = Rainbow(s).yellow.bright
   def c.link_title(s)   = Rainbow(s).cyan.bright
   def c.link_summary(s) = Rainbow(s).cyan
+  def c.count(s)        = Rainbow(s).cyan
 
   # to highlight all matches in text, inside links
   m_conds = @conditions.positive(:message).map(&:term)
@@ -442,6 +444,13 @@ begin
       puts out
     end
   end # for msgs
+
+  if @count
+    n = found.size
+    s = "#{n} message#{?s unless n == 1} found"
+    s << " (#{result[:max]._name} used)" if @max && n == @max
+    info! c.count s
+  end
 
   exit found.any? ? 0 : 1
 
