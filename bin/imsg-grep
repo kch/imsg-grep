@@ -149,7 +149,7 @@ begin
   result = Strop.parse optlist
 
   capture_opts = %w[ capture ]
-  text_opts    = %w[ no-meta one-line no-wrap count ]
+  text_opts    = %w[ no-meta no-wrap count ]
   json_opts    = %w[ json payload ]
   result.incompatible json_opts, text_opts
   result.incompatible json_opts, capture_opts
@@ -357,7 +357,7 @@ begin
   end
 
   if @json
-    puts JSON.pretty_generate found
+    puts JSON.send(@one_line ? :generate : :pretty_generate, found)
     exit
   end
 

@@ -47,6 +47,7 @@ Presentation:
                            (default: yes if tty)
     -W, --no-wrap          Don't wrap text
     -l, --one-line         [from -> to] message, newlines removed
+                           with --json, disable pretty print
     -U, --urls             Print only URLs in place of message text
                            when link available
     -m, --no-meta          Print only text or capture
