@@ -346,7 +346,8 @@ begin
   end
 
   # stylesheets :P
-  c = Object.new
+  @c = c = Object.new
+  def c.pass(s)         = s
   def c.link(s)         = Rainbow(s).green
   def c.link!(s)        = Rainbow(s).green.bright
   def c.match!(s)       = Rainbow(s).magenta.bright
@@ -369,8 +370,8 @@ begin
   def highlight(s, r, a, b)
     return unless s
     s.cleave(r).each_slice(2).flat_map do |sa, sb|
-      [ (a.(sa) if sa && !sa.empty?),
-        (b.(sb) if sb && !sb.empty?)]
+      [ (@c.send(a, sa) if sa && !sa.empty?),
+        (@c.send(b, sb) if sb && !sb.empty?)]
     end.join
   end
 
@@ -379,7 +380,7 @@ begin
 
     # highlight matches inside urls
     url,  ourl  = link&.values_at(:url, :original_url)
-    curl, courl = [url, ourl].map { highlight(it, rx_link_highlight, ->a{c.link a}, ->b{c.link! b}) }
+    curl, courl = [url, ourl].map { highlight(it, rx_link_highlight, :link, :link!) }
 
     text = text.to_s.dup
     if @capture_link && url  # captured links replace text
@@ -392,8 +393,8 @@ begin
       has_link = link && text =~ rx_links
       # hightlight matches in text, first replacing links with colored versions from above
       text = text.cleave(rx_links).each_slice(2).flat_map do |s, u|
-        msg_text = highlight(s, rx_highlight, ->a{a}, ->b{c.match! b}) # hilight the message part that is not link
-        msg_url  = { ourl => courl, url => curl}[u]                    # urls highlighted earlier, use that
+        msg_text = highlight(s, rx_highlight, :pass, :match!) # hilight the message part that is not link
+        msg_url  = { ourl => courl, url => curl}[u]           # urls highlighted earlier, use that
         [msg_text, msg_url]
       end.join
       # append whole url if not fully present in text (missing protocol etc)
