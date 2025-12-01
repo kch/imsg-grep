@@ -155,6 +155,8 @@ begin
   optlist << Optdecl[:opts] # dev opt
   result = Strop.parse optlist
 
+  (puts HELP_OPTS; exit 1) if result.empty?
+
   capture_opts = %w[ capture ]
   text_opts    = %w[ no-meta no-wrap count ]
   json_opts    = %w[ json payload ]
@@ -162,7 +164,6 @@ begin
   result.incompatible json_opts, capture_opts
   result.compact_singles! %w[ max capture ]
 
-  (puts HELP_OPTS; exit 1) if result.empty?
 
   for opt in result
     case opt
