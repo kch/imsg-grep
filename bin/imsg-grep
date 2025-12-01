@@ -430,9 +430,9 @@ begin
     curl, courl = [url, ourl].map { highlight(it, rx_link_highlight, :link, :link!) }
 
     text = text.to_s.dup
-    if @urls && url  # captured links replace text
+    if @urls && url  # -U captured links replace text
       text = curl
-    elsif @capture    # replace text with eval'd capture output string
+    elsif @capture   # replace text with eval'd capture output string
       m1   = @capture_pat.match text
       m2   = { ?` => $`, ?' => $', ?& => $&, ?+ => $+ }
       refs = /\\(?:(\d)|([&`'+]))|\\(\\)/ # 3 = \, 2 = `'&+ refs, 1 = digits
