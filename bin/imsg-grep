@@ -93,12 +93,19 @@ def parse_capture(str)
   end
 end
 
+def rx_abbr(pat) = /^#{pat.chars.map{ Regexp.escape it }.join(".*?")}/i
+
 def parse_service(str)
   srvs = %w[ all imessage rcs sms ]
-  srv = srvs.grep(/^#{str.chars.map{ Regexp.escape it }.join(".*?")}/i).first
-  warn! "unknown service: #{str}" if srv.nil? # warn but let through
-  return if srv == "all"                      # default, no filter
-  @service = srv ? /^#{srv}$/i : /^#{str}/i   # fallback to str if none found
+  str.split(?,).map do |s|
+    m = srvs.grep(rx_abbr s).first # safe to assume .first as /^./ all distinct
+    # warn but let through, if \W, assume regexp and dont warn
+    warn! "unknown service: #{s} (will try to match anyway)" if m.nil? && s !~ /\W/
+    m += ?$ if srvs.include? m  # full match for known services
+    m ||= s                     # fallback to str if unknown
+    m = "" if m == "all"        # empty str will match anything
+    m
+  end.join(?|).then{ /^(?:#{it})/i }
 end
 
 # LIKE is too much of a mess. ASCII-insensitive, only sensitive option is GLOB.
