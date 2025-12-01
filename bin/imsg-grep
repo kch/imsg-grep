@@ -172,6 +172,7 @@ begin
     in label: "to",    value:    then add_cond :to,    mk_regexp(value), negate: consume(:@negate), via: opt
     in label: "from",  value:    then add_cond :from,  mk_regexp(value), negate: consume(:@negate), via: opt
     in label: "with",  value:    then add_cond :with,  mk_regexp(value), negate: consume(:@negate), via: opt
+    in label: "chat",  value:nil then add_cond :chat,  true,             negate: consume(:@negate), via: opt
     in label: "chat",  value:    then add_cond :chat,  mk_regexp(value), negate: consume(:@negate), via: opt
     in label: "sent"             then add_cond :from_me, true,  via: opt
     in label: "received"         then add_cond :from_me, false, via: opt
@@ -321,6 +322,7 @@ begin
       in :to,      Regexp      then match_searchable(:recipients_searchable, term)
       in :with,    Regexp      then match_searchable(:members_searchable, term)
       in :chat,    Regexp      then match(:chat_name, term)
+      in :chat, (true | false) then "(is_group_chat IS #{'NOT' unless term} TRUE)" # so nulls also match -vc
       in :message, Regexp      then match(:text, term)
       in :service, Regexp      then match(:service, term)
       end

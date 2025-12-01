@@ -9,7 +9,8 @@ Participant filtering:
     -t, --to CONTACT        Match recipients
     -f, --from CONTACT      Match sender
     -w, --with CONTACT      Match sender or recipients
-    -c, --chat PATTERN      Match chat name
+    -c, --chat [PATTERN]    With no argument, match any group chat
+                            Otherwise PATTERN matches chat name
 
 Message filtering:
     -M, --message PATTERN   Match message text
