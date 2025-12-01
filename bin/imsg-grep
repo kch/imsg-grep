@@ -150,7 +150,7 @@ begin
   HELP_OPTS = HELP[/.*?(?=~~)/m].strip
   optlist = Strop.parse_help HELP_OPTS
   optlist << Optdecl[:D, :debug] # hidden opt
-  optlist << Optdecl[:opts?] # dev opt
+  optlist << Optdecl[:opts?] if File.directory? __dir__ + "/../.git" # only available during development
   result = Strop.parse optlist
 
   (puts HELP_OPTS; exit 1) if result.empty?
@@ -212,6 +212,7 @@ begin
     in label: "help"             then puts HELP_OPTS; exit
     in label: "help-dates"       then puts read_doc("HELP_DATES"); exit
     in label: "debug"            then @debug = true
+    in label: "opts", value:     then optlist.report_usage(value); exit # dev stuff: Used to see what options are still available
 
     in Arg(arg: _) | Opt(label: "message", value: _)
       add_cond :message, mk_regexp(opt.value), negate: consume(:@negate), via: opt
@@ -220,7 +221,6 @@ begin
       Messages.reset_cache
       exit if (result.opts.map(&:label) - ["reset"]).empty? && result.args.empty? # exit if opt used alone
 
-    in label: "opts", value: then optlist.report_usage(value); exit # dev stuff: Used to see what options are still available
     end
   end
 
