@@ -26,6 +26,7 @@ class Strop::Result
   end
 
   # Compacts duplicate single-occurrence options by keeping only the last occurrence.
+  # Alters the result set in-place.
   # Issues a warning when duplicates are found and removed.
   # Example:
   #   $ cmd -a1 -b2 -a3 -b4 -x
