@@ -173,13 +173,13 @@ begin
     in label: "from",  value:    then add_cond :from,  mk_regexp(value), negate: consume(:@negate), via: opt
     in label: "with",  value:    then add_cond :with,  mk_regexp(value), negate: consume(:@negate), via: opt
     in label: "chat",  value:    then add_cond :chat,  mk_regexp(value), negate: consume(:@negate), via: opt
-    in label: "sent"             then add_cond :from_me, true, via: opt
+    in label: "sent"             then add_cond :from_me, true,  via: opt
     in label: "received"         then add_cond :from_me, false, via: opt
     in label: "links", value:nil then add_cond :links, true, via: opt
     in label: "links", value:    then add_cond :links, mk_regexp(value), negate: consume(:@negate), via: opt
-    in label: "youtube"          then add_cond :links, :youtube, via: opt
+    in label: "youtube"          then add_cond :links, :youtube,    via: opt
     in label: "soundcloud"       then add_cond :links, :soundcloud, via: opt
-    in label: "twitter"          then add_cond :links, :twitter, via: opt
+    in label: "twitter"          then add_cond :links, :twitter,    via: opt
     in label: "service", value:  then srv = parse_service(value) and add_cond :service, srv, via: opt
     in label: "and", value:nil   then next_bool :and
     in label: "or",  value:nil   then next_bool :or
@@ -305,6 +305,7 @@ begin
   filter_order = %i[ from_me since until service media links ]
   sorted_singles = keyed_singles.sort_by{|k,| filter_order.index(k) || Float::INFINITY }.map(&:last)
   groups = sorted_singles + grouped  # put it back together
+
   sql_cond = groups.map do |group|
     group.map do |key, term, bin_op, not_op|
       sql = case [key, term]
