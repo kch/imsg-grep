@@ -79,7 +79,7 @@ end
 def parse_p_int(str)
   Integer(str).tap{ raise ArgumentError unless it > 0 }
 rescue ArgumentError
-  raise OptionError, "#{str} not a positive integer"
+  raise OptionError, "not a positive integer: #{str}"
 end
 
 def parse_capture(str)
