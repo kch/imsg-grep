@@ -20,8 +20,8 @@ Message filtering:
     -Y, --youtube           Find youtube links
     -S, --soundcloud        Find soundcloud links
     -X, --twitter           Find twitter links
-    --service=SRV           One of all|imessage|rcs|sms
-                            (default: all)
+    --service=SRV           Filter by messaging service
+                            One of: all|imessage|rcs|sms (default: all)
     -n, --max=NUM           Only print top NUM messages
     -a, --all               Allow calling with no conditions
                             (will print every message unless -n)
@@ -38,8 +38,6 @@ Pattern modifiers:
                             Affects next pattern only
     -A, --and=[PATTERN]     Must also appear with previous condition
     -O, --or=[PATTERN]      Either previous or next condition may occur
-                            -f x --or y is valid, as well as -f x --or -f y
-                            Can mix too like -fX -O -cY
                             See --help-bools for more
 
 Presentation:
@@ -49,7 +47,8 @@ Presentation:
     -l, --one-line          [from -> to] message, newlines removed
                             with --json, disable pretty print
     -U, --urls              Print only URLs in place of message text
-                            when link available
+                            Prefer canonical URLs if available
+                            No change when no link present
     -m, --no-meta           Print only text or capture
                             No from/to headers, link details
     -k, --count             Print total messges found at the end
@@ -63,6 +62,7 @@ Other:
     -R, --reset             Clear and rebuild cache
     -h, --help              Show this help
     --help-dates            Show detailed DATE help
+    --help-bools            Show detailed help for logical operations
 
 Conditions for --from, --chat, --service are OR'd with others from same option.
 --links, -Y, -X, -S too are all OR'd together.
@@ -73,6 +73,11 @@ a single expression. Then get AND'ed with the rest.
 ~~H~~
 
 ~~HELP~~
+
+# Bools
+
+-f x --or y is valid, as well as -f x --or -f y
+Can mix too like -fX -O -cY
 
 # Dates
 
@@ -115,8 +120,6 @@ Pattern flags (-iICxq) affect all subsequent options. So:
 matches literal case-sensitive 'Andy' sender, and case-insensitive regexp recipient, and chat name too.
 
 Matches are partial, if you need to match a full name (or email, etc) use regexp anchors.
-
-
 
 # Capture
 
