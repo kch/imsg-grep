@@ -197,6 +197,7 @@ begin
     in label: "all"              then @allow_all = true
     in label: "urls"             then @urls      = true
     in label: "no-meta"          then @no_meta   = true
+    in label: "short-names"      then @short_names = true
     in label: "no-wrap"          then @no_wrap   = true
     in label: "one-line"         then @one_line  = true
     in label: "count"            then @count     = true
@@ -415,6 +416,13 @@ begin
 
   for msg in found
     msg => guid:, from:, to:, chat_name:, text:, link:, time:, is_group_chat:, has_attachments:
+
+    if @short_names
+      rename = ->s{ s.sub(/^(\p{Alpha}\S*)(?:.*\s+(\p{Alpha})\S*)?(?: \(.+\))?$/){ [$1, $2].compact.join(" ") } }
+      from = rename.(from)
+      to.map!(&rename)
+      chat_name = chat_name&.sub(/^.{8}\K(.+)/m, "…") if @one_line
+    end
 
     # highlight matches inside urls
     url,  ourl  = link&.values_at(:url, :original_url)
