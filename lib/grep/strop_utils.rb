@@ -39,6 +39,17 @@ class Strop::Result
       replace self - opts[...-1]
     end
   end
+
+  # Error when --opt= (empty value, like --opt='')
+  # Does not affect nils (--opt, no arg)
+  # when called with no args, affects all opts
+  def disallow_empty(*labels)
+    labels     = labels.flatten.map{ Strop.name_from_symbol it }
+    candidates = labels.empty? ? opts : labels.flat_map{ opts[[it]] }
+    opt        = candidates.find{ it.value == "" } or return
+    raise OptionError, "value for #{opt._name} cannot be empty"
+  end
+
 end
 
 

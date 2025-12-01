@@ -164,6 +164,7 @@ begin
   result.incompatible json_opts, capture_opts
   result.compact_singles! %w[ max capture ]
 
+  result.disallow_empty # for all
 
   for opt in result
     case opt
