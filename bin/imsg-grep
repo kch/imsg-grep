@@ -204,7 +204,8 @@ begin
     in label: "reverse"          then @reverse   = true
     in label: "utc"              then @utc       = true
     in label: "json"             then @json      = true
-    in label: "payload"          then @json      = true, @payload = true
+    in label: "payload"          then @json = @payload = true
+    in label: "tiny"             then @short_names = @urls = @one_line = true
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "version"          then puts "imsg-grep v0.0.1"; exit
     in label: "help"             then puts HELP_OPTS; exit

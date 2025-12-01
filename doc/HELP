@@ -53,6 +53,7 @@ Presentation:
                             No from/to headers, link details
     -N, --short-names       Shorten participant names to First L
                             Truncate chat names if --one-line
+    -T, --tiny              Shorthand for --short-names --one-line --urls
     -k, --count             Print total messges found at the end
     -o, --capture [EXPR]    Print only matched string, or EXPR
     -j, --json              JSON output
