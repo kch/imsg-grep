@@ -59,6 +59,7 @@ Presentation:
     -V, --reverse           Reverse sort order (oldest first)
 
 Other:
+    --version               Print version
     -R, --reset             Clear and rebuild cache
     -h, --help              Show this help
     --help-dates            Show detailed DATE help
