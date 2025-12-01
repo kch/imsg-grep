@@ -12,17 +12,17 @@ Participant filtering:
     -c, --chat PATTERN      Match chat name
 
 Message filtering:
-    -M, --message=PATTERN   Match message text. Generally implied, but
+    -M, --message PATTERN   Match message text. Generally implied, but
                             good for booleans: -f x --or -M y
     -s, --sent              Only match sent
     -r, --received          Only match received
-    -L, --links[=URL]       Find links
+    -L, --links [URL]       Find links
     -Y, --youtube           Find youtube links
     -S, --soundcloud        Find soundcloud links
     -X, --twitter           Find twitter links
-    --service=SRV           Filter by messaging service
+    --service SRV           Filter by messaging service
                             One of: all|imessage|rcs|sms (default: all)
-    -n, --max=NUM           Only print top NUM messages
+    -n, --max NUM           Only print top NUM messages
     -a, --all               Allow calling with no conditions
                             (will print every message unless -n)
 
@@ -36,8 +36,8 @@ Pattern modifiers:
     -v, --invert-match      Negate next pattern
     -E, --exact             Match full string only
                             Affects next pattern only
-    -A, --and=[PATTERN]     Must also appear with previous condition
-    -O, --or=[PATTERN]      Either previous or next condition may occur
+    -A, --and [PATTERN]     Must also appear with previous condition
+    -O, --or [PATTERN]      Either previous or next condition may occur
                             See --help-bools for more
 
 Presentation:
