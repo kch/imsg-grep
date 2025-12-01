@@ -12,8 +12,8 @@ Participant filtering:
     -c, --chat PATTERN      Match chat name
 
 Message filtering:
-    -M, --message PATTERN   Match message text. Generally implied, but
-                            good for booleans: -f x --or -M y
+    -M, --message PATTERN   Match message text
+                            Useful for boolean expressions: -f x --or -M y
     -s, --sent              Only match sent
     -r, --received          Only match received
     -L, --links [URL]       Find links
@@ -55,7 +55,7 @@ Presentation:
     -o, --capture [EXPR]    Print only matched string, or EXPR
     -j, --json              JSON output
     -P, --payload           Include payload in JSON
-    -V, --reverse           Reverse sort order (oldest first)
+    -z, -V, --reverse       Reverse sort order (oldest first)
 
 Other:
     --version               Print version
