@@ -222,12 +222,13 @@ begin
     end
   end
 
+
 ################################################################################
 ### checking conflicting options ###############################################
 ################################################################################
 
   if @conditions.empty? && !@allow_all
-    raise OptionError, "no filter conditions given (use --all to allow)" # too much stuff
+    raise OptionError, "no filter conditions given (use --all or --max to allow)" # too much stuff
   end
 
   if @conditions.atomics(:from_me).map(&:term).uniq.size > 1
