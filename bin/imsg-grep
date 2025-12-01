@@ -140,8 +140,8 @@ end
 ### begin option parsing #######################################################
 ################################################################################
 begin
-  def read_base(f) = IO.read(__dir__ + "/../#{f}")
-  HELP = read_base("HELP").gsub("PROG", PROG)
+  def read_doc(f) = IO.read(__dir__ + "/../doc/#{f}")
+  HELP = read_doc("HELP").gsub("PROG", PROG)
   HELP_OPTS = HELP[/.*?(?=~~)/m].strip
   optlist = Strop.parse_help HELP_OPTS
   optlist << Optdecl[:D, :debug] # hidden opt
@@ -200,7 +200,7 @@ begin
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "version"          then puts "imsg-grep v0.0.1"; exit
     in label: "help"             then puts HELP_OPTS; exit
-    in label: "help-dates"       then puts read_base("HELP_DATES"); exit
+    in label: "help-dates"       then puts read_doc("HELP_DATES"); exit
     in label: "debug"            then @debug = true
 
     in Arg(arg: _) | Opt(label: "message", value: _)

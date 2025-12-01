@@ -130,7 +130,9 @@ When its a format string: "foo \1 bar \2", interpolates the captures.
 Only works if single pattern given
 \0 is the full match
 
--q, -x only affect subsequent patterns.
+-q, -x, -i -I -C only affect all subsequent patterns.
+
+-E, -v affect the immediate next only
 
 can use -x -to a.aa -q -to bbbb
 
