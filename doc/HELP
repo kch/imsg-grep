@@ -47,14 +47,14 @@ Presentation:
     --[no-]color            Enable/disable color output
                             (default: yes if tty)
     -W, --no-wrap           Don't wrap text
-    -l, --one-line          [from -> to] message, newlines removed
+    -l, --one-line          "[from -> to] message", newlines removed
                             with --json, disable pretty print
     -U, --urls              Print only URLs in place of message text
                             Prefer canonical URLs if available
                             No change when no link present
     -m, --no-meta           Print only text or capture
                             No from/to headers, link details
-    -N, --short-names       Shorten participant names to First L
+    -N, --short-names       Shorten participant names like "First L"
                             Truncate chat names if --one-line
     -T, --tiny              Shorthand for --short-names --one-line --urls
     -k, --count             Print total messges found at the end
