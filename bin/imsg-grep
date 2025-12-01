@@ -28,7 +28,7 @@ PROG = File.basename($0)
 @next_bool = nil
 @conditions = []
 
-class Cond < Array
+class Cond < Array # basically a tuple with named accessors for positions
   %i[ key term bincon negate opt ].zip(0..).each do |m, i|
     define_method(m){ self[i] }
     define_method("#{m}="){|v| self[i] = v }
