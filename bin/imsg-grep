@@ -298,10 +298,13 @@ begin
   keyed_singles = singles.flatten(1).group_by(&:first)
   keyed_singles.each do |k, group|
     op = default_or.include?(k) ? :or : :and
-    group[1..]&.each{ it.bincon = op }     # first member doest get op
+    group[1..]&.each{ it.bincon = it.negate ? :and : op } # first member doest get op; negated exprs on base expr always AND
   end
-  groups = grouped + keyed_singles.values  # put it back together
 
+  # put the easy filters first for performance
+  filter_order = %i[ from_me since until service media links ]
+  sorted_singles = keyed_singles.sort_by{|k,| filter_order.index(k) || Float::INFINITY }.map(&:last)
+  groups = sorted_singles + grouped  # put it back together
   sql_cond = groups.map do |group|
     group.map do |key, term, bin_op, not_op|
       sql = case [key, term]
