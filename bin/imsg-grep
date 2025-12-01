@@ -348,7 +348,7 @@ begin
   SQL
 
   if @debug
-    bat = `hash bat 2>/dev/null` && $?.success? ? ["bat", '-l', 'sql'] : "cat"
+    bat = `hash bat 2>/dev/null` && $?.success? ? %w[bat -l sql] : "cat"
     IO.popen(bat, 'w', out: :err) { it << sql }
   end
 
