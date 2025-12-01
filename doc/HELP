@@ -11,6 +11,21 @@ Participant filtering:
     -w, --with CONTACT      Match sender or recipients
     -c, --chat PATTERN      Match chat name
 
+Message filtering:
+    -M, --message=PATTERN   Match message text. Generally implied, but
+                            good for booleans: -f x --or -M y
+    -s, --sent              Only match sent
+    -r, --received          Only match received
+    -L, --links[=URL]       Find links
+    -Y, --youtube           Find youtube links
+    -S, --soundcloud        Find soundcloud links
+    -X, --twitter           Find twitter links
+    --service=SRV           One of all|imessage|rcs|sms
+                            (default: all)
+    -n, --max=NUM           Only print top NUM messages
+    -a, --all               Allow calling with no conditions
+                            (will print every message unless -n)
+
 Pattern modifiers:
     -C, --smart-case        Case-sensitive only when pattern has uppercase
                             letters. (default, turn off with -i or -I)
@@ -26,21 +41,6 @@ Pattern modifiers:
                             -f x --or y is valid, as well as -f x --or -f y
                             Can mix too like -fX -O -cY
                             See --help-bools for more
-
-Message filtering:
-    -M, --message=PATTERN   Match message text. Generally implied, but
-                            good for booleans: -f x --or -M y
-    -s, --sent              Only match sent
-    -r, --received          Only match received
-    -L, --links[=URL]       Find links
-    -Y, --youtube           Find youtube links
-    -S, --soundcloud        Find soundcloud links
-    -X, --twitter           Find twitter links
-    --service=SRV           One of all|imessage|rcs|sms
-                            (default: all)
-    -n, --max=NUM           Only print top NUM messages
-    -a, --all               Allow calling with no conditions
-                            (will print every message unless -n)
 
 Presentation:
     --[no-]color            Enable/disable color output
