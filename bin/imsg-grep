@@ -150,7 +150,7 @@ begin
   HELP_OPTS = HELP[/.*?(?=~~)/m].strip
   optlist = Strop.parse_help HELP_OPTS
   optlist << Optdecl[:D, :debug] # hidden opt
-  optlist << Optdecl[:opts] # dev opt
+  optlist << Optdecl[:opts?] # dev opt
   result = Strop.parse optlist
 
   (puts HELP_OPTS; exit 1) if result.empty?
@@ -219,7 +219,7 @@ begin
       Messages.reset_cache
       exit if (result.opts.map(&:label) - ["reset"]).empty? && result.args.empty? # exit if opt used alone
 
-    in label: "opts" then optlist.report_usage; exit # dev stuff: Used to see what options are still available
+    in label: "opts", value: then optlist.report_usage(value); exit # dev stuff: Used to see what options are still available
     end
   end
 

@@ -59,13 +59,17 @@ end
 
 
 class Strop::Optlist
-  def report_usage
+  def report_usage(chars = nil)
+    x     = true # flipper for stagger
     r     = ->s{ Rainbow(s) }
-    chars = (?0..?z).to_a.grep(/[^\W_]/).map{|c| [c] << r[c].then{ self[c]&.label ? it.black.bright : it.green.bright }}
+    chars = chars&.chars || (?0..?z).to_a.grep(/[^\W_]/)
+    chars = chars.sort_by{|c| [c =~ /\d/ || -1, c.downcase, c =~ /[[:upper:]]/ || 1] } # A, a, B, ... 9
+    chars = chars.map{|c| [c] << r[c].then{ self[c]&.label ? it.black.bright : it.green.bright }}
     longs = chars.map{|c, cc| l = self[c]&.label; [r["-"].black.bright, cc, r[(" --#{l}" if l)].blue].join }
-    pc    = 16 # results per column
+    longs = longs.map{ it.sub((x=!x) ? /^/ : / --/, '  \0') } # stagger
+    w     = longs.map(&:size).max + 4 # col width
+    pc    = [16, chars.length].min # results per column
     ll    = longs.length
-    w     = longs.map(&:size).max + 4
     longs.fill("", ll...((ll + pc - 1) / pc * pc)) # fill to multiple for transpose
     puts chars.map(&:last).join(" ")
     puts
