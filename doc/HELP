@@ -70,7 +70,7 @@ Other:
     --help-dates            Show detailed DATE help
     --help-bools            Show detailed help for logical operations
 
-Conditions for --from, --chat, --service are OR'd with others from same option.
+Conditions for --from, --chat, and --service are OR'd with others from same option.
 --links, -Y, -X, -S too are all OR'd together.
 
 Everything else is AND'ed by default. Chains of explicit --and/--or combine as
