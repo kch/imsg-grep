@@ -23,8 +23,8 @@ Message filtering:
     -a, --all               Allow calling with no conditions
                             (will print every message unless -n)
 
-Link filtering
-    -L, --links [URL]       Find links matching URL pattern
+Link filtering:
+    -L, --links [PATTERN]   Find links with URL matching pattern
                             With no argument, find all links
     -Y, --youtube           Find youtube links
     -S, --soundcloud        Find soundcloud links
@@ -32,24 +32,23 @@ Link filtering
 
 Pattern modifiers:
     -C, --smart-case        Case-sensitive only when pattern has uppercase
-                            letters. (default; turn off with -i or -I)
+                            letters (default; turn off with -i or -I)
     -i, --ignore-case       Case-insensitive matches
     -I, --no-ignore-case    Case-sensitive matches
     -q, --literal           Literal string match, no regex
     -x, --regexp            Regexp match (default; turn off with -q)
     -v, --invert-match      Negate next pattern
-    -E, --exact             Match full string only
-                            Affects next pattern only
+    -E, --exact             Next pattern must match full string
     -A, --and [PATTERN]     Must also appear with previous condition
     -O, --or [PATTERN]      Either previous or next condition may occur
+                            Without argument, affect the following condition
                             See --help-bools for more
 
-Presentation:
-    --[no-]color            Enable/disable color output
-                            (default: yes if tty)
+Format:
+    --[no-]color            Enable/disable color output (default: yes if tty)
     -W, --no-wrap           Don't wrap text
-    -l, --one-line          "[from -> to] message", newlines removed
-                            with --json, disable pretty print
+    -l, --one-line          "[from -> to] message", newlines stripped
+                            With --json, disable pretty print
     -U, --urls              Print only URLs in place of message text
                             Prefer canonical URLs if available
                             No change when no link present
@@ -57,7 +56,7 @@ Presentation:
                             No from/to headers, link details
     -N, --short-names       Shorten participant names like "First L"
                             Truncate chat names if --one-line
-    -T, --tiny              Shorthand for --short-names --one-line --urls
+    -T, --tiny              Same as --short-names --one-line --urls
     -k, --count             Print total messges found at the end
     -o, --capture [EXPR]    Print only matched string, or EXPR
     -j, --json              JSON output
@@ -71,11 +70,13 @@ Other:
     --help-dates            Show detailed DATE help
     --help-bools            Show detailed help for logical operations
 
-Conditions for --from, --chat, and --service are OR'd with others from same option.
+Conditions for --from, --chat, and --service are OR'd with others from same
+option.
+
 --links, -Y, -X, -S too are all OR'd together.
 
-Everything else is AND'ed by default. Chains of explicit --and/--or combine as
-a single expression. Then get AND'ed with the rest.
+Everything else is AND'ed by default. Chains of explicit --and/--or combine as a
+single expression. Then get AND'ed with the rest.
 
 ~~H~~
 
