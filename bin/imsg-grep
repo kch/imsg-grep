@@ -91,7 +91,7 @@ def parse_capture(str)
   end
 end
 
-def rx_abbr(pat) = /^#{pat.chars.map{ Regexp.escape it }.join(".*?")}/i
+def rx_abbr(pat) = /^#{pat.chars.map{ Regexp.escape it }.join(".{,8}?")}/i
 
 def parse_service(str)
   srvs = %w[ any imessage rcs sms ]
