@@ -181,9 +181,10 @@ module Messages
       title     = rich_link&.dig "title"
       summary   = rich_link&.dig "summary"
       image     = rich_link&.dig "imageMetadata", "URL"
+      image_idx = rich_link&.dig "image", "richLinkImageAttachmentSubstituteIndex"
       url = rich_url || orig_url || found_url
 
-      link = { url:, title:, summary:, image:, original_url: orig_url } if url
+      link = { url:, title:, summary:, image:, image_idx:, original_url: orig_url } if url
       @cache[:links][guid] = link.to_json
     end
 
