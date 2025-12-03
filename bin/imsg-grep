@@ -94,14 +94,14 @@ end
 def rx_abbr(pat) = /^#{pat.chars.map{ Regexp.escape it }.join(".*?")}/i
 
 def parse_service(str)
-  srvs = %w[ all imessage rcs sms ]
+  srvs = %w[ any imessage rcs sms ]
   str.split(?,).map do |s|
     m = srvs.grep(rx_abbr s).first # safe to assume .first as /^./ all distinct
     # warn but let through, if \W, assume regexp and dont warn
     warn! "unknown service: #{s} (will try to match anyway)" if m.nil? && s !~ /\W/
     m += ?$ if srvs.include? m  # full match for known services
     m ||= s                     # fallback to str if unknown
-    m = "" if m == "all"        # empty str will match anything
+    m = "" if m == "any"        # empty str will match anything
     m
   end.join(?|).then{ /^(?:#{it})/i }
 end

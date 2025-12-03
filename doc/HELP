@@ -17,8 +17,8 @@ Message filtering:
                             Useful for boolean expressions: -f x --or -M y
     -s, --sent              Only match sent
     -r, --received          Only match received
-                            One of: all|imessage|rcs|sms (default: all)
     -V, --service SRV       Filter by messaging service
+                            One of: any|imessage|rcs|sms (default: any)
     -n, --max NUM           Only print top NUM messages
     -a, --all               Allow calling with no conditions
                             (will print every message unless -n)
