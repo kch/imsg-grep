@@ -17,8 +17,8 @@ Message filtering:
                             Useful for boolean expressions: -f x --or -M y
     -s, --sent              Only match sent
     -r, --received          Only match received
-    --service SRV           Filter by messaging service
                             One of: all|imessage|rcs|sms (default: all)
+    -V, --service SRV       Filter by messaging service
     -n, --max NUM           Only print top NUM messages
     -a, --all               Allow calling with no conditions
                             (will print every message unless -n)
@@ -61,11 +61,11 @@ Format:
     -o, --capture [EXPR]    Print only matched string, or EXPR
     -j, --json              JSON output
     -P, --payload           Include payload in JSON
-    -z, -V, --reverse       Reverse sort order (oldest first)
+    -R, -z, --reverse       Reverse sort order (oldest first)
 
 Other:
     --version               Print version
-    -R, --reset             Clear and rebuild cache
+    --reset                 Clear and rebuild cache
     -h, --help              Show this help
     --help-dates            Show detailed DATE help
     --help-bools            Show detailed help for logical operations
