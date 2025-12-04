@@ -71,6 +71,7 @@ class Strop::Optlist
     pc    = [16, chars.length].min # results per column
     ll    = longs.length
     longs.fill("", ll...((ll + pc - 1) / pc * pc)) # fill to multiple for transpose
+    # puts self
     puts chars.map(&:last).join(" ")
     puts
     puts longs.map{ "%-#{w}s" % it }.each_slice(pc).to_a.transpose.map(&:join).join("\n")
