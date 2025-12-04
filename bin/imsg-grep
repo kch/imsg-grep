@@ -477,9 +477,9 @@ begin
     elsif @one_line
       text << " #{c.link_summary(oneline[title])}" if title
       to = chat_name.to_s.empty? ? to*', ' : chat_name
-      out = "#{c.l_time time} [#{c.l_from from} -> #{c.l_to to}]: #{text}"
-      out.prepend "#{guid} " if @debug
-      puts out
+      buf = "#{c.l_time time} [#{c.l_from from} -> #{c.l_to to}]: #{text}"
+      buf.prepend "#{guid} " if @debug
+      puts buf
     else
       out = {
         GUID: (guid if @debug),
