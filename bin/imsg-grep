@@ -49,7 +49,8 @@ def consume(ivarname) = instance_variable_get(ivarname).tap{ instance_variable_s
 def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: (!$stdout.tty?||@no_wrap))
   return s if disable
   sgr = /\e\[[\d;]*m/
-  pad = " " * indent
+  pad = "\e[#{indent}C"
+
   s.lines.map(&:chomp).each_with_object([]) do |line, acc|
     next acc << pad+line if line =~ %r[^#{sgr}*https?://\S+\z] # don't wrap link lines
     w = maxw - indent
