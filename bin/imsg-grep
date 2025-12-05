@@ -214,7 +214,7 @@ begin
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "img"              then @preview |= "images"; add_cond :files, :images, via: opt
     in label: "version"          then puts "imsg-grep v0.0.1"; exit
-    in label: "help"             then puts HELP_OPTS; exit
+    in label: "help"             then puts opt.name == ?h ? HELP_OPTS : HELP.sub(/^~~.*\n/, ''); exit
     in label: "help-dates"       then puts read_doc("HELP_DATES"); exit
     in label: "debug"            then @debug = true
     in label: "opts", value:     then optlist.report_usage(value); exit # dev stuff: Used to see what options are still available

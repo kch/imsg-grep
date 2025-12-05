@@ -78,50 +78,47 @@ Media:
 Other:
     --version               Print version
     --reset                 Clear and rebuild cache
-    -h, --help              Show this help
+    -h, --help              Show this help (long form shows more)
     --help-dates            Show detailed DATE help
-    --help-bools            Show detailed help for logical operations
 
-Conditions for --from, --chat, and --service are OR'd with others from same
-option.
+~~LONG HELP BELOW~~
 
---links, -Y, -X, -S too are all OR'd together.
+LOGICAL EXPRESSIONS
 
-Everything else is AND'ed by default. Chains of explicit --and/--or combine as a
-single expression. Then get AND'ed with the rest.
+  Conditions for --from, --chat, and --service are OR'd with others from same
+  option.
 
-~~H~~
+  --links, -Y, -X, -S too are all OR'd together.
 
-~~HELP~~
+  Everything else is AND'ed by default. Chains of explicit --and/--or combine
+  as a single expression. Then get AND'ed with the rest.
 
-# Bools
+  -f x --or y is valid, as well as -f x --or -f y
+  Can mix too like -fX -O -cY
 
--f x --or y is valid, as well as -f x --or -f y
-Can mix too like -fX -O -cY
+DATES
 
-# Dates
+  Two formats supported:
 
-Two formats supported:
+  1. ISO8601 format. Time and TZ optional.
 
-1. ISO8601 format. Time and TZ optional.
+  Examples
 
-Examples
+    -d '2024-12-30'
+    -d '2024-12-30 12:34'
+    -d '2024-12-30T12:45Z'
 
-  -d '2024-12-30'
-  -d '2024-12-30 12:34'
-  -d '2024-12-30T12:45Z'
+  Times are considered local unless TZ component present in string,
+  or -Z option used.
 
-Times are considered local unless TZ component present in string,
-or -Z option used.
+  2. Relative dates/times:
 
-2. Relative dates/times:
+    -d 4y     # since 4 years ago
+    -d 1m5w   # 1 month 5 weeks
+    -d 30min  # 30 minutes
+    -d 3a     # since 3am today
 
-  -d 4y     # since 4 years ago
-  -d 1m5w   # 1 month 5 weeks
-  -d 30min  # 30 minutes
-  -d 3a     # since 3am today
-
-See --help-dates for more details.
+  See --help-dates for more details.
 
 # Patterns
 
