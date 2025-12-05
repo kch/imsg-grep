@@ -306,6 +306,16 @@ begin
   @exact     and warn! "last #{result[[:exact]].last._name} disregarded (not followed by pattern)"
   @next_bool and warn! "last #{result.opts.reverse_each.find{ %w[ and or ].include? it.label }._name} disregarded (not followed by pattern)"
 
+  require_relative "../lib/imaginator" if preview?
+  if preview? && !Imaginator.image_tooling?
+    @preview = nil
+    e = "previews disabled: "
+    case
+    when !Imaginator::EXTENSION_AVAILABLE then warn! e + "img2png extension not compiled"
+    when !Imaginator.term_image_protocol  then warn! e + "no terminal support for images"
+    when !Imaginator.cell_size            then warn! e + "cannot determine cell dimensions"
+    end
+  end
 
 ################################################################################
 ### build sql query ############################################################
