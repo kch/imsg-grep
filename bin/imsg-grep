@@ -46,17 +46,15 @@ end
 def consume(ivarname) = instance_variable_get(ivarname).tap{ instance_variable_set(ivarname, nil) }
 
 # wrap and indent text, respecting SGR sequences; only if tty
-def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: (!$stdout.tty?||@no_wrap))
+def wrap(s, indent=0, maxw = IO.console.winsize[1] - 2, disable: (!$stdout.tty?||@no_wrap), wrap_all: false)
   return s if disable
   sgr = /\e\[[\d;]*m/
   pad = "\e[#{indent}C"
 
   s.lines.map(&:chomp).each_with_object([]) do |line, acc|
-    next acc << pad+line if line =~ %r[^#{sgr}*https?://\S+\z] # don't wrap link lines
+    next acc << pad+line if line =~ %r[^#{sgr}*https?://\S+\z] unless wrap_all # don't wrap link lines
     w = maxw - indent
     line.scan(sgr) { $~.begin(0) > w ? break : w += it.bytesize } # increase w to account for SGR
-    # this option doesn't wrap spaceless chunks > w
-    # ix = (line.rindex(" ", w) || line.index(" ", w) if line.size > w) # find last space before w, or next after, or nil when short enough
     ix = (line.rindex(" ", w) || w-1 if line.size > w)            # find last space before w, or use w, or nil when short enough
     acc << pad + line.slice!(..ix).chomp(" ")
     redo unless line.empty?
