@@ -199,22 +199,46 @@ begin
     in label: "max", value:      then @allow_all = true; @max = parse_p_int(value)
     in label: "all"              then @allow_all = true
     in label: "urls"             then @urls      = true
-    in label: "no-meta"          then @no_meta   = true
-    in label: "short-names"      then @short_names = true
     in label: "no-wrap"          then @no_wrap   = true
     in label: "one-line"         then @one_line  = true
     in label: "count"            then @count     = true
     in label: "reverse"          then @reverse   = true
     in label: "utc"              then @utc       = true
     in label: "json"             then @json      = true
+    in label: "no-meta"          then @no_meta = true; @list_files = false
+    in label: "short-names"      then @short_names = true
     in label: "payload"          then @json = @payload = true
     in label: "tiny"             then @short_names = @urls = @one_line = true
+    in label: "list-files"       then @list_files = true
+    in label: "no-list-files"    then @list_files = false
     in label: "color"            then Rainbow.enabled = opt.yes?
+    in label: "img"              then @preview |= "images"; add_cond :files, :images, via: opt
     in label: "version"          then puts "imsg-grep v0.0.1"; exit
     in label: "help"             then puts HELP_OPTS; exit
     in label: "help-dates"       then puts read_doc("HELP_DATES"); exit
     in label: "debug"            then @debug = true
     in label: "opts", value:     then optlist.report_usage(value); exit # dev stuff: Used to see what options are still available
+
+    in label: "preview", value:
+      previewables = %w[ images links ]
+      next @preview = previewables if value.nil?
+      @preview = value.split(?,).map do |v|
+        previewables.grep(rx_abbr v).first or raise OptionError, "invalid preview target: #{v}"
+      end
+
+    in label: "files", value:
+      value = "any" if value.nil?
+      value.split(/(?!<\\),/).map{ it.split(?:, 2) }.each do |spec|
+        _add_cond = ->cond{ add_cond :files, cond, negate: consume(:@negate), via: opt }
+        case spec
+        in [/^a(ny)?$/]         then _add_cond.call :any
+        in [/^i(mg?|mages?)?$/] then _add_cond.call :images
+        in [/^n(ame)?$/, v]     then _add_cond.call [:name, mk_regexp(v)]
+        in [/^m(ime)?$/, v]     then _add_cond.call [:mime, mk_regexp(v)]
+        in [/^e(xt)?$/, v]      then _add_cond.call [:ext,  mk_regexp(v)]
+        else raise OptionError, "invalid file specifier: #{[*spec]*?:} (in #{value})"
+        end
+      end
 
     in Arg(arg: _) | Opt(label: "message", value: _)
       add_cond :message, mk_regexp(opt.value), negate: consume(:@negate), via: opt
@@ -225,6 +249,10 @@ begin
 
     end
   end
+
+  @list_files = !@one_line && !@json if @list_files.nil?
+
+  def preview?(kind=nil) = kind ? @preview&.include?(kind.to_s) : @preview&.any?
 
 
 ################################################################################
