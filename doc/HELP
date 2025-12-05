@@ -63,6 +63,18 @@ Format:
     -P, --payload           Include payload in JSON
     -R, -z, --reverse       Reverse sort order (oldest first)
 
+Media:
+    -F, --files [KIND|KEY:PATTERN]
+                            Find messages with files of KIND
+                            or matching pattern for KEY
+                            KIND: any (default) or images
+                            KEY: name, ext, mime
+    -b, --list-files        List attached files (default in normal list)
+    -B, --no-list-files     Do not list attached files
+    -p, --preview [KIND]    Inline image preview (requires terminal support)
+                            KIND is some of: images, links; both if not given
+    -g, --img, --images     Same as --files=images --preview=images
+
 Other:
     --version               Print version
     --reset                 Clear and rebuild cache
