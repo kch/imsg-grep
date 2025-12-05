@@ -1,2 +1,3 @@
 lib/img2png.dylib
 bin/img2png
+*.gem
