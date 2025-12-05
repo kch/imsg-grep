@@ -1,6 +1,7 @@
 source "https://rubygems.org"
 
 gem "base64"
+gem "ffi"
 gem "io-console"
 gem "sqlite3"
 gem "json"
