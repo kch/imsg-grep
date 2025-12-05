@@ -334,7 +334,7 @@ begin
 
   groups = @conditions.slice_before{ !(Symbol === it.bincon) }
 
-  default_or = %i[ links service from chat ] # these conds do OR by default
+  default_or = %i[ links service from chat files ] # these conds do OR by default (unless negated)
   singles, grouped = groups.partition{|group| group in [[_, _, nil, *]] } # singles = a group with single elem, no bin op
   keyed_singles = singles.flatten(1).group_by(&:first)
   keyed_singles.each do |k, group|
@@ -343,9 +343,18 @@ begin
   end
 
   # put the easy filters first for performance
-  filter_order = %i[ from_me since until service media links ]
+  filter_order = %i[ from_me since until service files links ]
   sorted_singles = keyed_singles.sort_by{|k,| filter_order.index(k) || Float::INFINITY }.map(&:last)
   groups = sorted_singles + grouped  # put it back together
+
+  Messages.init
+
+  @file_filters = []
+  if @conditions.on(:files).any?{ it.term in [_, Regexp] }
+    Messages.db.ƒ(:filename){ it[(it.rindex(?/) || -1)+1..] }
+    Messages.db.ƒ(:fileext) { i = it.rindex(?.) and it[i+1..] or "" }
+    def add_file_filter(sel) = "file_filter_#{@file_filters.size}".tap{|as| @file_filters << [sel, as].join(" as ") }
+  end
 
   sql_cond = groups.map do |group|
     group.map do |key, term, bin_op, not_op|
@@ -365,6 +374,12 @@ begin
       in :chat, (true | false) then "(is_group_chat IS #{'NOT' unless term} TRUE)" # so nulls also match -vc
       in :message, Regexp      then match(:text, term)
       in :service, Regexp      then match(:service, term)
+      in :files, :any          then "(has_attachments AND has_files IS TRUE)"  # has_attachments first should be a faster check
+      in :files, :images       then "(has_attachments AND has_images IS TRUE)"
+      in :files, [:mime, Regexp => r] then add_file_filter(match("a.mime_type",          r)).then{ "#{it} IS TRUE" }
+      in :files, [:name, Regexp => r] then add_file_filter(match("filename(a.filename)", r)).then{ "#{it} IS TRUE" }
+      in :files, [:ext,  Regexp => r] then add_file_filter(match("fileext(a.filename)",  r)).then{ "#{it} IS TRUE" }
+
       end
       ops = [bin_op, not_op].compact.join(" ").upcase
       sql = "#{ops} #{sql}".lstrip
@@ -373,11 +388,27 @@ begin
 
   limit = "LIMIT #{@max}" if @max
   time_col = @utc ? :utc_time : :local_time
+
   sql = <<~SQL
+    WITH attachment_flags AS (
+      SELECT
+        m.ROWID as message_id,
+        #{[*@file_filters, ""].join(",\n")}
+        MAX(CASE WHEN a.mime_type LIKE 'image/%' THEN 1 ELSE 0 END) as has_images,
+        MAX(a.mime_type IS NOT NULL) as has_files -- this excludes the uti like 'dyn.%'  files
+      FROM _imsg.message m
+      JOIN _imsg.message_attachment_join maj ON m.ROWID = maj.message_id
+      JOIN _imsg.attachment a ON maj.attachment_id = a.ROWID
+      WHERE m.cache_has_attachments
+      GROUP BY m.ROWID
+    )
     SELECT
       #{'payload_json,' if @payload}
+      m.message_id,
       guid,
       has_attachments,
+      af.has_images IS TRUE as has_images,
+      af.has_files  IS TRUE as has_files,
       sender_name as "from",
       recipient_names as "to",
       is_group_chat,
@@ -387,7 +418,8 @@ begin
       service,
       utc_time,
       #{time_col} as time
-    FROM message_view
+    FROM message_view m
+    LEFT JOIN attachment_flags af ON m.message_id = af.message_id
     #{"WHERE\n" + sql_cond unless sql_cond.empty?}
     ORDER BY unix_time #{@reverse ? 'ASC' : 'DESC'}
     #{limit}
@@ -398,7 +430,6 @@ begin
     IO.popen(bat, 'w', out: :err) { it << sql }
   end
 
-  Messages.init
   found = Messages.db.select_hashes(sql)
 
 ################################################################################
