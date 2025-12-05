@@ -430,13 +430,27 @@ begin
     IO.popen(bat, 'w', out: :err) { it << sql }
   end
 
-  found = Messages.db.select_hashes(sql)
+  messages = Messages.db.select_hashes(sql)
+
+  if @list_files || preview?(:links)
+    ids = messages.select{ it[:has_attachments] == 1 }.map{ it[:message_id] }.join(", ")
+    all_files = Messages.db.select_hashes(<<~SQL).group_by{ it[:message_id] }
+      SELECT a.ROWID, a.filename, a.mime_type, a.uti, m.ROWID as message_id
+      FROM _imsg.attachment a
+      JOIN _imsg.message_attachment_join maj ON a.ROWID = maj.attachment_id
+      JOIN _imsg.message m ON maj.message_id = m.ROWID
+      WHERE m.ROWID IN (#{ids})
+      ORDER BY m.ROWID, a.ROWID
+    SQL
+    messages.each{ it[:files] = all_files[it[:message_id]] || [] }
+  end
+
 
 ################################################################################
 ### Massage results ############################################################
 ################################################################################
 
-  found.each do |msg|
+  messages.each do |msg|
     msg[:from]        ||= "me"
     msg[:to]            = JSON.parse(msg[:to] || '["me"]')
     msg[:link]          = JSON.parse(msg[:link] || "null")&.transform_keys(&:to_sym)
@@ -445,7 +459,7 @@ begin
   end
 
   if @json
-    puts JSON.send(@one_line ? :generate : :pretty_generate, found)
+    puts JSON.send(@one_line ? :generate : :pretty_generate, messages)
     exit
   end
 
@@ -468,7 +482,6 @@ begin
   def c.link!(s)        = Rainbow(s).green.bright
   def c.match!(s)       = Rainbow(s).magenta.bright
   def c.capture!(s)     = Rainbow(s).red.bright
-  def c.attachs(s)      = Rainbow(s).cyan
   def c.l_time(s)       = Rainbow(s).bright.blue
   def c.l_from(s)       = Rainbow(s).yellow
   def c.l_to(s)         = Rainbow(s).yellow.bright
@@ -477,6 +490,9 @@ begin
   def c.link_title(s)   = Rainbow(s).cyan.bright
   def c.link_summary(s) = Rainbow(s).cyan
   def c.count(s)        = Rainbow(s).cyan
+  def c.files(s)        = Rainbow(s).cyan
+  def c.file_path(s)    = Rainbow(s).cyan.faint
+  def c.file_name(s)    = Rainbow(s).cyan.bright
 
   # to highlight all matches in text, inside links
   m_conds = @conditions.positive(:message).map(&:term)
@@ -492,13 +508,19 @@ begin
     end.join
   end
 
+  # link preview setup
+  if preview? :links
+    cw = IO.console.winsize[1]
+    @link_preview_cols = [(cw - 2) / 2, 20].min
+  end
 
   ################################################################################
   ### Print messages #############################################################
   ################################################################################
 
-  for msg in found
+  for msg in messages
     msg => guid:, from:, to:, chat_name:, text:, link:, time:, is_group_chat:, has_attachments:
+    files = msg[:files]
 
     if @short_names
       rename = ->s{ s.sub(/^(\p{Alpha}\S*)(?:.*\s+(\p{Alpha})\S*)?(?: \(.+\))?$/){ [$1, $2].compact.join(" ") } }
@@ -534,12 +556,19 @@ begin
 
     oneline = ->s { s.gsub(/\p{Space}*\R\p{Space}*/, " ").strip }
     text = oneline[text] if @one_line
-    text = c.attachs("[attachments]") if has_attachments && text =~ /\A\uFFFC*\z/ # if text is empty or only object marker
+
+    if has_attachments && text =~ /\A\uFFFC*\z/ # if text is empty or only object marker
+      text = @list_files && !@one_line ? "" : c.files("[files]")
+    end
+
+    text = text.gsub(/\uFFFC/, c.files(?░)) if @list_files && has_attachments
 
     unless @no_meta
-      nn      = "\n\n"
-      title   = link&.dig :title
-      summary = link&.dig :summary
+      nn         = "\n\n"
+      title      = (link[:title]   if link)
+      summary    = (link[:summary] if link)
+      link_image = (files[link[:image_idx]] if link && link[:image_idx] && files && preview?(:links))
+      link_image &&= File.expand_path link_image[:filename]
     end
 
     if @no_meta # oneline included, already onelined above
@@ -551,30 +580,84 @@ begin
       buf.prepend "#{guid} " if @debug
       puts buf
     else
-      out = {
+      buf = {
         GUID: (guid if @debug),
         From: from,
         "To..": (to*', ' unless is_group_chat),
         With:   (to*', ' if is_group_chat),
         Chat: chat_name,
         Date: time
-      }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{c.label k}: #{c.value v}" }*?\n
-      out << nn << wrap(text, 2)
-      out << nn << c.link_title(wrap(title, 2)) if title
-      out << nn << c.link_summary(wrap(summary, 2)) if summary
-      out << nn
-      puts out
+      }.reject{|k,v| v.to_s.empty? }.map{|k,v| "#{c.label k}: #{c.value v}" }*?\n << nn
+
+      puts buf
+
+      pad = 2
+      link_preview = url && preview?(:links) && link_image
+      pad += 1 + @link_preview_cols if link_preview
+
+      buf = +""
+      buf << wrap(text, pad, wrap_all: link_preview) << nn unless text.empty?
+      buf << c.link_title(wrap(title, pad, wrap_all: link_preview)) << nn if title
+      buf << c.link_summary(wrap(summary, pad, wrap_all: link_preview)) << nn if summary
+
+      if link_preview
+        buf_rows = buf.strip.count(?\n) + 1
+        img_rows = [buf_rows, 6].max
+        im = Imaginator::Image.new(link_image).load
+        fit, fits = im.fit @link_preview_cols, img_rows
+        data = im.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
+        print " "
+        Imaginator.print_image(data: data, c:@link_preview_cols)
+        puts
+        print "\e[#{fit.r}A" # go up by image rows
+      end
+
+      print buf
+      (fit.r - buf_rows).times{ puts } if link_preview # fill newlines past img
+
+      if @list_files
+        for file in files.reject{ it[:mime_type].nil? }
+          path, _, name = file[:filename].rpartition %r_(?<=/)_
+          puts "  " + c.file_path(path) + c.file_name(name) + ?\n
+        end
+        puts
+
+        images = files.select{ it[:mime_type]&.start_with?('image/') }
+        if preview?(:images) && images.any?
+          img_rows = 8
+          maxcols  = IO.console.winsize[1] - 2
+          (print "  "; cols = 2)
+          for img, ix in images.zip(1..)
+            path = File.expand_path img[:filename]
+            im   = Imaginator::Image.new(path).load
+            fit, = im.fit 25, img_rows
+            data = im.png_transform w:fit.w, h:fit.h
+            # puts cols
+            cols += fit.c
+            # puts cols
+            # puts fit
+            if cols > maxcols
+              print "\n" * (fit.r+1)
+              (print "  "; cols = 2 + fit.c)
+            end
+            Imaginator.print_image(data: data, r: fit.r)
+            (print "\e[#{fit.r - 1}A "; cols += 1) unless ix == images.size # move back up for next image unless last
+          end
+          puts nn
+        end
+      end
+
     end
   end # for msgs
 
   if @count
-    n = found.size
+    n = messages.size
     s = "#{n} message#{?s unless n == 1} found"
     s << " (#{result[:max]._name} used)" if @max && n == @max
     info! c.count s
   end
 
-  exit found.any? ? 0 : 1
+  exit messages.any? ? 0 : 1
 
 rescue OptionError => e
   err! e.message.sub(/^./){ $&.downcase } # strop using upcases but we aren't; not ready to change this on strop yet
