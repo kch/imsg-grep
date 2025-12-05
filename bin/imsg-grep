@@ -155,10 +155,13 @@ begin
   (puts HELP_OPTS; exit 1) if result.empty?
 
   capture_opts = %w[ capture ]
-  text_opts    = %w[ no-meta no-wrap count ]
+  text_opts    = %w[ no-meta no-wrap count preview img tiny short-names urls color count ]
   json_opts    = %w[ json payload ]
   result.incompatible json_opts, text_opts
   result.incompatible json_opts, capture_opts
+  result.incompatible :no_wrap, :preview
+  result.incompatible %w[ one-line tiny no-meta ], %w[ list-files ]
+
   result.compact_singles! %w[ max capture ]
 
   result.disallow_empty # for all

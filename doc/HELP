@@ -53,7 +53,7 @@ Format:
                             Prefer canonical URLs if available
                             No change when no link present
     -m, --no-meta           Print only text or capture
-                            No from/to headers, link details
+                            No from/to headers, link or file details
     -N, --short-names       Shorten participant names like "First L"
                             Truncate chat names if --one-line
     -T, --tiny              Same as --short-names --one-line --urls
