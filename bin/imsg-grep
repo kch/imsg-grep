@@ -29,7 +29,7 @@ PROG = File.basename($0)
 @conditions = []
 
 class Cond < Array # basically a tuple with named accessors for positions
-  %i[ key term bincon negate opt ].zip(0..).each do |m, i|
+  %i[ key term bin_op not_op opt ].zip(0..).each do |m, i|
     define_method(m){ self[i] }
     define_method("#{m}="){|v| self[i] = v }
   end
@@ -120,12 +120,12 @@ rescue RegexpError => e
 end
 
 def add_cond(key, term, negate: false, via:)
-  bincon = consume(:@next_bool)
-  if bincon
-    raise OptionError, "no previous condition to apply --#{bincon} to" unless @conditions.last
-    @conditions.last.bincon ||= "" # generates no sql but evals true
+  bin_op = consume(:@next_bool)
+  if bin_op
+    raise OptionError, "no previous condition to apply --#{bin_op} to" unless @conditions.last
+    @conditions.last.bin_op ||= "" # generates no sql but evals true
   end
-  @conditions << Cond[key, term, bincon, (:not if negate), via]
+  @conditions << Cond[key, term, bin_op, (:not if negate), via]
 end
 
 def repeat_cond(term, negate: false, via:)
@@ -355,14 +355,14 @@ begin
   def match(x, r) = "#{x} REGEXP '#{SQLite3::Database.quote r.to_s}'"
   def match_searchable(x, r) = "EXISTS (SELECT 1 FROM json_each(#{x}) WHERE #{match(:value, r)})"
 
-  groups = @conditions.slice_before{ !(Symbol === it.bincon) }
+  groups = @conditions.slice_before{ !(Symbol === it.bin_op) }
 
   default_or = %i[ links service from chat files ] # these conds do OR by default (unless negated)
   singles, grouped = groups.partition{|group| group in [[_, _, nil, *]] } # singles = a group with single elem, no bin op
   keyed_singles = singles.flatten(1).group_by(&:first)
   keyed_singles.each do |k, group|
     op = default_or.include?(k) ? :or : :and
-    group[1..]&.each{ it.bincon = it.negate ? :and : op } # first member doest get op; negated exprs on base expr always AND
+    group[1..]&.each{ it.bin_op = it.not_op ? :and : op } # first member doest get op; negated exprs on base expr always AND
   end
 
   # put the easy filters first for performance
