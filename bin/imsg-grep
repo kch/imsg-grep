@@ -547,7 +547,6 @@ begin
       preview?(:links) and
       link = msg[:link] and
       @link_images[link] = Concurrent::Promises.future_on(POOL, msg) do |msg|
-        # print Rainbow(".").red
         ix   = link[:image_idx] or next
         file = msg.dig(:files, ix) or next
         path = File.expand_path file[:filename]
@@ -560,7 +559,6 @@ begin
       msg[:images] = msg[:files].select{ it[:mime_type]&.start_with?('image/') }
       preview?(:images) and msg[:images].each do |im|
         @images[im] = Concurrent::Promises.future_on(POOL, im) do |im|
-          # print Rainbow(".").green
           path = File.expand_path im[:filename]
           img  = Imaginator::Image.new(path).load or next
           fit, = img.fit 25, @img_rows
