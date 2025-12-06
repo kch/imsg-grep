@@ -616,19 +616,19 @@ begin
 
       pad = 2
       link_preview = url && preview?(:links) && link_image
-      pad += 1 + @link_preview_cols if link_preview
+      link_image = Imaginator::Image.new(link_image).load if link_preview
+      pad += 1 + @link_preview_cols if link_image
 
       buf = +""
       buf << wrap(text, pad, wrap_all: link_preview) << nn unless text.empty?
       buf << c.link_title(wrap(title, pad, wrap_all: link_preview)) << nn if title
       buf << c.link_summary(wrap(summary, pad, wrap_all: link_preview)) << nn if summary
 
-      if link_preview
+      if link_image
         buf_rows = buf.strip.count(?\n) + 1
         img_rows = [buf_rows, 6].max
-        im = Imaginator::Image.new(link_image).load
-        fit, fits = im.fit @link_preview_cols, img_rows
-        data = im.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
+        fit, fits = link_image.fit @link_preview_cols, img_rows
+        data = link_image.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
         print " "
         Imaginator.print_image(data: data, c:@link_preview_cols)
         puts
@@ -636,7 +636,7 @@ begin
       end
 
       print buf
-      (fit.r - buf_rows).times{ puts } if link_preview # fill newlines past img
+      (fit.r - buf_rows).times{ puts } if link_image # fill newlines past img
 
       if @list_files
         for file in files.reject{ it[:mime_type].nil? }
@@ -653,6 +653,7 @@ begin
           for img, ix in images.zip(1..)
             path = File.expand_path img[:filename]
             im   = Imaginator::Image.new(path).load
+            next unless im
             fit, = im.fit 25, img_rows
             data = im.png_transform w:fit.w, h:fit.h
             # puts cols

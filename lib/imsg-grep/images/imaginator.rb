@@ -15,8 +15,13 @@ module Imaginator
     Fit = Data.define :w, :h, :c, :r, :pad_h, :pad_w
 
     def initialize(path) = @path = path
-    def load             = (@img ||= Img2png::Image.new IO.binread @path; self)
     def dimensions       = @img.dimensions
+
+    def load
+      return unless File.exist? @path
+      @img ||= Img2png::Image.new IO.binread @path
+      self
+    end
 
     def png_transform w:, h:, pad_h:nil, pad_w:nil
       pad = pad_h || pad_w
