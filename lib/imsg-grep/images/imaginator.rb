@@ -16,6 +16,7 @@ module Imaginator
 
     def initialize(path) = @path = path
     def dimensions       = @img.dimensions
+    def release          = @img.release
 
     def load
       return unless File.exist? @path
