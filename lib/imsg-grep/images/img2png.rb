@@ -11,10 +11,15 @@ module Img2png
   attach_function :img2png_free,      [:pointer], :void
 
   class Image
-    def initialize(data)
+    def initialize(path:nil, data:nil)
+      [path, data].compact.size == 1 or raise ArgumentError, "One of path: or data: must be specified"
       out_w = FFI::MemoryPointer.new(:int)
       out_h = FFI::MemoryPointer.new(:int)
-      @handle = Img2png.img2png_load(data, data.bytesize, out_w, out_h)
+
+      @handle = case
+      when data then Img2png.img2png_load(data, data.bytesize, out_w, out_h)
+      when path then Img2png.img2png_load_path(path, out_w, out_h)
+      end
       raise "Failed to load image" if @handle.null?
 
       @width  = out_w.read_int

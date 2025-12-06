@@ -19,7 +19,8 @@ module Imaginator
 
     def load
       return unless File.exist? @path
-      @img ||= Img2png::Image.new IO.binread @path
+      # @img ||= Img2png::Image.new path: @path # do the the IO in swift, turns out not any faster
+      @img ||= Img2png::Image.new data: IO.binread(@path)
       self
     end
 
