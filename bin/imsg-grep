@@ -524,6 +524,7 @@ begin
   def c.link_summary(s) = Rainbow(s).cyan
   def c.count(s)        = Rainbow(s).cyan
   def c.files(s)        = Rainbow(s).cyan
+  def c.file_path_bad(s)= Rainbow(s).red
   def c.file_path(s)    = Rainbow(s).cyan.faint
   def c.file_name(s)    = Rainbow(s).cyan.bright
 
@@ -689,7 +690,9 @@ begin
       if @list_files
         for file in files.reject{ it[:mime_type].nil? }
           path, _, name = file[:filename].rpartition %r_(?<=/)_
-          puts "  " + c.file_path(path) + c.file_name(name) + ?\n
+          p, q, r = path.rpartition %r_/\KTemporaryItems(?=/)_
+          path = c.file_path(p) + c.file_path_bad(q) + c.file_path(r)
+          puts "  " + path + c.file_name(name) + ?\n
         end
         puts
 
