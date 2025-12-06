@@ -166,6 +166,22 @@ public class ImageHandle {
     }
 }
 
+// Load image from file path, apply rotation. Returns opaque handle or null on error.
+@_cdecl("img2png_load_path")
+public func img2png_load_path(path: UnsafePointer<CChar>,
+                              outW: UnsafeMutablePointer<Int>,
+                              outH: UnsafeMutablePointer<Int>) -> UnsafeMutableRawPointer? {
+    let pathStr = String(cString: path)
+    let url = URL(fileURLWithPath: pathStr)
+
+    guard let data = try? Data(contentsOf: url) else {
+        return nil
+    }
+
+    return img2png_load(inputData: data.withUnsafeBytes { $0.bindMemory(to: UInt8.self).baseAddress! },
+                        inputLen: data.count, outW: outW, outH: outH)
+}
+
 // Load image from data, apply rotation. Returns opaque handle or null on error.
 @_cdecl("img2png_load")
 public func img2png_load(inputData: UnsafePointer<UInt8>, inputLen: Int,

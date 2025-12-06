@@ -4,6 +4,7 @@ module Img2png
   extend FFI::Library
   ffi_lib "#{__dir__}/img2png.dylib"
 
+  attach_function :img2png_load_path, [:string, :pointer, :pointer], :pointer, blocking: true
   attach_function :img2png_load,      [:pointer, :int, :pointer, :pointer], :pointer, blocking: true
   attach_function :img2png_convert,   [:pointer, :int, :int, :int, :int, :pointer, :pointer], :bool, blocking: true
   attach_function :img2png_release,   [:pointer], :void
