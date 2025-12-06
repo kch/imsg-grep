@@ -665,7 +665,7 @@ begin
         puts
 
         # gotta load them all upfront cause gotta know if the last exists for cursor move
-        images = msg[:images].map{ @images[it].value! }.compact
+        images = msg[:images] && msg[:images].map{ @images[it].value! }.compact
         if preview?(:images) && images.any?
           img_rows = 8
           maxcols  = IO.console.winsize[1] - 2
