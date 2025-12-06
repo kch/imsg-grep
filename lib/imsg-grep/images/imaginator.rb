@@ -77,7 +77,7 @@ module Imaginator
   def kitty_images? = term_seq("\e_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\e\\", "\e\\") == "\e_Gi=31;OK\e\\"
 
   def cell_size # [cell width px, cell height px] (Floats)
-    case
+    @cell_size ||= case
     when iterm = term_seq("\e]1337;ReportCellSize\e\\", ?\a)[/ReportCellSize=(.*)\e/, 1]
       iterm.split(?;).map{ Float it }.then{ |h, w, s| s ||= 1; [w*s, h*s] } # multiply by retina scale factor
     when csi16t = term_seq("\e[16t", ?t)[/\e\[6;(\d+;\d+)t/, 1] # ghostty
