@@ -2,6 +2,17 @@
 
 Search and filter iMessage history from command line.
 
+## Features
+
+Search iMessage history with regex patterns, date ranges, and participant filters. Extract links and media files. Output text or JSON.
+
+- Contact filtering (sender/recipient matching)
+- Date range queries with relative formats
+- Link extraction (YouTube, Twitter, etc.)
+- File and image attachment search
+- Inline terminal images
+- Boolean expressions
+
 ## Usage
 
 ```
@@ -41,6 +52,8 @@ imsg-grep [options] [PATTERN]
 - `-F, --files [KIND]` - Find file attachments
 - `-g, --images` - Find images with preview
 
+See [`--help`](doc/HELP) for more.
+
 ## Examples
 
 ```bash
@@ -53,11 +66,11 @@ imsg-grep -f Alice -d 2024-01-01 "meeting"
 # YouTube links in group chats
 imsg-grep -c -Y
 
-# Extract phone numbers
-imsg-grep -o '\d{3}-\d{3}-\d{4}' '\d{3}-\d{3}-\d{4}'
+# Extract usernames from mentions
+imsg-grep -o '@(\w+)' '@\w+'
 
-# JSON output with counts
-imsg-grep -jk -f Bob -d 1w
+# JSON output
+imsg-grep -j -f Bob -d 1w
 ```
 
 ## Date Formats
