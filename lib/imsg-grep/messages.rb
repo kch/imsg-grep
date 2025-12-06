@@ -185,6 +185,10 @@ module Messages
       ci_idx    = rich_link&.dig("contentImages")&.at(0)&.dig("richLinkImageAttachmentSubstituteIndex")
       image_idx = ci_idx if ci_idx
       url = rich_url || orig_url || found_url
+      # i'm not sure the mapping richLinkImageAttachmentSubstituteIndex to
+      # attachment.rowid sort order is fully reliable, but i can't find any
+      # other way to go about it, nothing else the index could map to
+      # the other option is sort link files by total_bytes and pick the largest :/
 
       link = { url:, title:, summary:, image:, image_idx:, original_url: orig_url } if url
       @cache[:links][guid] = link.to_json
