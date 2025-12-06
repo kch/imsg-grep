@@ -17,6 +17,8 @@ Search iMessage history with regex patterns, date ranges, and participant filter
 
 macOS, ruby 3.4+, SQLite.
 
+Full Disk Access must be enabled for terminal.
+
 iTerm or Ghostty (or other kitty) for image support. 
 
 ## Installing

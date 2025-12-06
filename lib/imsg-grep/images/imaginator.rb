@@ -1,12 +1,12 @@
 require "io/console"
 require "concurrent-ruby"
-require_relative "img2png"
 
 module Imaginator
   begin
     require_relative "img2png"
     EXTENSION_AVAILABLE = true
   rescue LoadError
+    puts "jel;;"
     EXTENSION_AVAILABLE = false
   end
 
