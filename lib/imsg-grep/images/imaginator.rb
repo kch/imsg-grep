@@ -80,9 +80,9 @@ module Imaginator
     buf
   end
 
-  def term_features = (term_seq("\e]1337;Capabilities\e\\", ?\a) =~ /Capabilities=([A-Za-z0-9]*)/ and $1.scan(/[A-Z][a-z]?\d*/))
-  def iterm_images? = term_features&.include?(?F)
-  def kitty_images? = term_seq("\e_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\e\\", "\e\\") == "\e_Gi=31;OK\e\\"
+  def term_features = @term_features ||= (term_seq("\e]1337;Capabilities\e\\", ?\a) =~ /Capabilities=([A-Za-z0-9]*)/ and $1.scan(/[A-Z][a-z]?\d*/))
+  def iterm_images? = @iterm_images  ||= term_features&.include?(?F)
+  def kitty_images? = @kitty_images  ||= term_seq("\e_Gi=31,s=1,v=1,a=q,t=d,f=24;AAAA\e\\", "\e\\") == "\e_Gi=31;OK\e\\"
 
   def cell_size # [cell width px, cell height px] (Floats)
     @cell_size ||= case
@@ -95,7 +95,7 @@ module Imaginator
   end
 
   def term_image_protocol
-    return if @term_image_protocol == false
+    return @term_image_protocol unless @term_image_protocol.nil?
     @term_image_protocol = case
     when ENV["TERM_PROGRAM"] == "Apple_Terminal" then false # it echoes back the kitty query and I don't wanna figure out how not to
     when iterm_images? then :iterm # has to go before kitty as iterm responds ok to kitty query but can't render them
