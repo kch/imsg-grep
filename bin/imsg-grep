@@ -539,6 +539,8 @@ begin
     POOL = Concurrent::FixedThreadPool.new(Concurrent.processor_count - 1)
     cols = IO.console.winsize[1]
     @link_preview_cols = [(cols - 2) / 2, 20].min
+    @link_preview_min_rows = 6
+    @img_rows = 8
     @link_images = {}
     @images = {}
     messages.each do |msg|
@@ -549,14 +551,22 @@ begin
         ix   = link[:image_idx] or next
         file = msg.dig(:files, ix) or next
         path = File.expand_path file[:filename]
-        Imaginator::Image.new(path).load
+        img  = Imaginator::Image.new(path).load or next
+        fit, fits = img.fit @link_preview_cols, @link_preview_min_rows
+        png = img.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
+        # can't release img yet, might reuse. released after png use
+        [fit, png, img]
       end
       msg[:images] = msg[:files].select{ it[:mime_type]&.start_with?('image/') }
       preview?(:images) and msg[:images].each do |im|
         @images[im] = Concurrent::Promises.future_on(POOL, im) do |im|
           # print Rainbow(".").green
           path = File.expand_path im[:filename]
-          Imaginator::Image.new(path).load
+          img  = Imaginator::Image.new(path).load or next
+          fit, = img.fit 25, @img_rows
+          png  = img.png_transform w:fit.w, h:fit.h
+          img.release
+          [fit, png]
         end # promise
       end # images
     end # messages
@@ -612,10 +622,10 @@ begin
     text = text.gsub(/\uFFFC/, c.files(?░)) if @list_files && has_attachments
 
     unless @no_meta
-      nn         = "\n\n"
-      title      = (link[:title]   if link)
-      summary    = (link[:summary] if link)
-      link_image = (@link_images[link].value! if link && preview?(:links))
+      nn      = "\n\n"
+      title   = (link[:title]   if link)
+      summary = (link[:summary] if link)
+      link_image_result = (@link_images.delete(link)&.value! if link && preview?(:links))
     end
 
     if @no_meta # oneline included, already onelined above
@@ -639,26 +649,34 @@ begin
       puts buf
 
       pad = 2
-      pad += 1 + @link_preview_cols if link_image
+      pad += 1 + @link_preview_cols if link_image_result
 
       buf = +""
-      buf << wrap(text, pad, wrap_all: !!link_image) << nn unless text.empty?
-      buf << c.link_title(wrap(title, pad, wrap_all: !!link_image)) << nn if title
-      buf << c.link_summary(wrap(summary, pad, wrap_all: !!link_image)) << nn if summary
+      buf << wrap(text, pad, wrap_all: !!link_image_result) << nn unless text.empty?
+      buf << c.link_title(wrap(title, pad, wrap_all: !!link_image_result)) << nn if title
+      buf << c.link_summary(wrap(summary, pad, wrap_all: !!link_image_result)) << nn if summary
 
-      if link_image
+      if link_image_result
         buf_rows = buf.strip.count(?\n) + 1
-        img_rows = [buf_rows, 6].max
-        fit, fits = link_image.fit @link_preview_cols, img_rows
-        data = link_image.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
+        img_rows = [buf_rows, @link_preview_min_rows].max
+        fit, png, img = link_image_result
+        if img_rows != @link_preview_min_rows
+          fit1, fits = img.fit @link_preview_cols, img_rows
+          # if the backround render image is different from what we need now that we know the text size, do it again
+          if fit1 != fit
+            fit = fit1
+            png = img.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
+          end
+        end
+        img.release
         print " "
-        Imaginator.print_image(data: data, c:@link_preview_cols)
+        Imaginator.print_image(data: png, c: @link_preview_cols)
         puts
         print "\e[#{fit.r}A" # go up by image rows
       end
 
       print buf
-      (fit.r - buf_rows).times{ puts } if link_image # fill newlines past img
+      (fit.r - buf_rows).times{ puts } if link_image_result # fill newlines past img
 
       if @list_files
         for file in files.reject{ it[:mime_type].nil? }
@@ -668,20 +686,19 @@ begin
         puts
 
         # gotta load them all upfront cause gotta know if the last exists for cursor move
-        images = msg[:images] && msg[:images].map{ @images[it].value! }.compact
+        # deleting helps GC
+        images = msg[:images] && msg[:images].map{ @images.delete(it)&.value! }.compact
         if preview?(:images) && images.any?
-          img_rows = 8
           maxcols  = IO.console.winsize[1] - 2
           (print "  "; cols = 2)
-          for img, ix in images.zip(1..)
-            fit, = img.fit 25, img_rows
-            data = img.png_transform w:fit.w, h:fit.h
+          for img_result, ix in images.zip(1..)
+            fit, png, img = img_result
             cols += fit.c
             if cols > maxcols
               print "\n" * (fit.r+1)
               (print "  "; cols = 2 + fit.c)
             end
-            Imaginator.print_image(data: data, r: fit.r)
+            Imaginator.print_image(data: png, r: fit.r)
             (print "\e[#{fit.r - 1}A "; cols += 1) unless ix == images.size # move back up for next image unless last
           end
           puts nn
