@@ -150,7 +150,20 @@ begin
   optlist = Strop.parse_help HELP_OPTS
   optlist << Optdecl[:D, :debug] # hidden opt
   optlist << Optdecl[:opts?] if File.directory? __dir__ + "/../.git" # only available during development
-  result = Strop.parse optlist
+
+  # custom opt shorthands for max and relative dates: -1 == -n1, -1d == -d1d
+  # strop can't handle this (yet?) so we transform ahead
+  argvl, argvr = [ARGV, ARGV.index("--")].then{|a, i| [a[...i], i ? a[i..] : []] }
+  argvl.map! do |x|
+    x =~ /\A-((\d+)|(#{DateArg::RX_REL_DATE_PART}|#{DateArg::RX_REL_TIME_PART}))\z/
+    case [$2, $3]
+    in String, nil then "-n#{$1}"
+    in nil, String then "-d#{$1}"
+    in nil, nil    then x
+    end
+  end
+
+  result = Strop.parse optlist, argvl + argvr
 
   (puts HELP_OPTS; exit 1) if result.empty?
 
