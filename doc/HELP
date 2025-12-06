@@ -74,6 +74,7 @@ Media:
     -p, --preview [KIND]    Inline image preview (requires terminal support)
                             KIND is some of: images, links; both if not given
     -g, --img, --images     Same as --files=images --preview=images
+    -Q, --silence-warnings  Suppress warning messages and hints
 
 Other:
     --version               Print version

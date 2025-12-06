@@ -63,7 +63,7 @@ end
 
 def info!(s) = $stderr.puts("#{PROG}: #{s}")
 def err!(s)  = info!("error: #{s}")
-def warn!(s) = info!("warning: #{s}")
+def warn!(s) = (info!("warning: #{s}") unless @no_warn)
 
 ################################################################################
 ### parse helpers ##############################################################
@@ -226,6 +226,7 @@ begin
     in label: "no-list-files"    then @list_files = false
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "img"              then @preview |= "images"; add_cond :files, :images, via: opt
+    in label: "silence-warnings" then @no_warn = true
     in label: "version"          then puts "imsg-grep v#{ IO.read("#{__dir__}/../lib/imsg-grep/VERSION").chomp }"; exit
     in label: "debug"            then @debug = true
     in label: "opts", value:     then optlist.report_usage(value); exit # dev stuff: Used to see what options are still available
@@ -453,6 +454,13 @@ begin
     IO.popen(bat, 'w', out: :err) { it << sql }
   end
 
+  slow = unless @no_warn || result[:since] || Messages.db.execute("SELECT 1 FROM _cache.texts LIMIT 1").empty? # no cache is meant to be slow
+    Thread.new do
+      sleep 1
+      info! "hint: taking too long? try --since with a short time distance"
+    end
+  end
+
   messages = Messages.db.select_hashes(sql)
 
   if @list_files || preview?(:links)
@@ -480,6 +488,8 @@ begin
     msg[:payload]       = JSON.parse(msg.delete(:payload_json) || "null") if msg.key? :payload_json
     msg[:is_group_chat] = msg[:is_group_chat] == 1
   end
+
+  slow&.kill
 
   if @json
     puts JSON.send(@one_line ? :generate : :pretty_generate, messages)
