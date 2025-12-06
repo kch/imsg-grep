@@ -6,7 +6,6 @@ module Imaginator
     require_relative "img2png"
     EXTENSION_AVAILABLE = true
   rescue LoadError
-    puts "jel;;"
     EXTENSION_AVAILABLE = false
   end
 
