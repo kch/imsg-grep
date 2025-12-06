@@ -19,23 +19,8 @@ let VERSION = "1.0.0"
 // Shared image processing functions
 
 func loadImage(from data: Data) -> (CGImage, Int, Int)? {
-    guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil) else {
-        return nil
-    }
-
-    // Temporarily redirect stderr to suppress CFPropertyList warnings
-    let savedStderr = dup(STDERR_FILENO)
-    let devNull = open("/dev/null", O_WRONLY)
-    dup2(devNull, STDERR_FILENO)
-    close(devNull)
-
-    let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)
-
-    // Restore stderr
-    dup2(savedStderr, STDERR_FILENO)
-    close(savedStderr)
-
-    guard let image = image else {
+    guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil),
+          let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
         return nil
     }
 

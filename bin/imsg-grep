@@ -533,6 +533,9 @@ begin
 
   # link/image preview setup
   if preview?
+    # suppress CFPropertyList warnings on stderr. They're harmless but affect image rendering
+    ENV["OS_ACTIVITY_MODE"] = ENV["OS_ACTIVITY_DT_MODE"] = "disable"
+
     POOL = Concurrent::FixedThreadPool.new(Concurrent.processor_count - 1)
     cols = IO.console.winsize[1]
     @link_preview_cols = [(cols - 2) / 2, 20].min
