@@ -645,17 +645,18 @@ begin
         end
         puts
 
-        images = files.select{ it[:mime_type]&.start_with?('image/') }
+        images = files.select{ it[:mime_type]&.start_with?('image/') }.map do |img|
+          path = File.expand_path img[:filename]
+          Imaginator::Image.new(path).load
+        end.compact
+
         if preview?(:images) && images.any?
           img_rows = 8
           maxcols  = IO.console.winsize[1] - 2
           (print "  "; cols = 2)
           for img, ix in images.zip(1..)
-            path = File.expand_path img[:filename]
-            im   = Imaginator::Image.new(path).load
-            next unless im
-            fit, = im.fit 25, img_rows
-            data = im.png_transform w:fit.w, h:fit.h
+            fit, = img.fit 25, img_rows
+            data = img.png_transform w:fit.w, h:fit.h
             cols += fit.c
             if cols > maxcols
               print "\n" * (fit.r+1)
