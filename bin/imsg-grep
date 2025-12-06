@@ -227,10 +227,20 @@ begin
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "img"              then @preview |= "images"; add_cond :files, :images, via: opt
     in label: "version"          then puts "imsg-grep v#{ IO.read("#{__dir__}/../lib/imsg-grep/VERSION").chomp }"; exit
-    in label: "help"             then puts opt.name == ?h ? HELP_OPTS : HELP.sub(/^~~.*\n/, ''); exit
-    in label: "help-dates"       then puts read_doc("HELP_DATES"); exit
     in label: "debug"            then @debug = true
     in label: "opts", value:     then optlist.report_usage(value); exit # dev stuff: Used to see what options are still available
+
+    in label: "help-dates"       then puts read_doc("HELP_DATES"); exit
+    in label: "help"             then
+      long = opt.name != ?h || result[[:help]].size > 1 # ! -h || -hh
+      if long
+        puts HELP.sub(/^~~.*\n/, '')
+        puts "\nFor a shorter help summary, use -h"
+      else
+        puts HELP_OPTS
+        puts "\nSee --help for more"
+      end
+      exit
 
     in label: "preview", value:
       previewables = %w[ images links ]
