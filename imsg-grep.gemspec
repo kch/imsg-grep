@@ -14,6 +14,7 @@ Gem::Specification.new do |spec|
 
   spec.files = Dir[
     "lib/**/*.rb",
+    "lib/**/*.dylib",
     "ext/**/*.swift",
     "bin/*",
     "doc/*",

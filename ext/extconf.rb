@@ -2,6 +2,31 @@
 
 require "mkmf"
 
+# Check if dylib already exists
+dylib_path = File.join(File.dirname(__FILE__), "..", "lib", "img2png.dylib")
+if File.exist?(dylib_path)
+  # Create no-op Makefile since dylib already exists
+  File.open("Makefile", "w") do |f|
+    f.puts <<~MAKEFILE
+      SHELL = /bin/sh
+
+      all:
+      \t@echo "dylib already exists, skipping build"
+
+      install:
+      \t@echo "dylib already exists, skipping install"
+
+      clean:
+
+      distclean:
+      \trm -f Makefile
+
+      .PHONY: all install clean distclean
+    MAKEFILE
+  end
+  exit 0
+end
+
 # Check for explicit disable via environment variable
 images_disabled = %w[0 no false].include?(ENV['IMSGGREP_IMAGES']&.downcase)
 
