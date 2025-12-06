@@ -13,6 +13,7 @@ Gem::Specification.new do |spec|
   spec.platform = "darwin"
 
   spec.files = Dir[
+    "lib/**/VERSION",
     "lib/**/*.rb",
     "lib/**/*.dylib",
     "ext/**/*.swift",
