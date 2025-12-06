@@ -13,6 +13,12 @@ Search iMessage history with regex patterns, date ranges, and participant filter
 - Inline terminal images
 - Boolean expressions
 
+## Installing
+
+```
+gem install imsg-grep
+```
+
 ## Usage
 
 ```
