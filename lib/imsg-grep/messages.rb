@@ -182,6 +182,8 @@ module Messages
       summary   = rich_link&.dig "summary"
       image     = rich_link&.dig "imageMetadata", "URL"
       image_idx = rich_link&.dig "image", "richLinkImageAttachmentSubstituteIndex"
+      ci_idx    = rich_link&.dig("contentImages")&.at(0)&.dig("richLinkImageAttachmentSubstituteIndex")
+      image_idx = ci_idx if ci_idx
       url = rich_url || orig_url || found_url
 
       link = { url:, title:, summary:, image:, image_idx:, original_url: orig_url } if url
