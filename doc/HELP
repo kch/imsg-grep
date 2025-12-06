@@ -38,7 +38,7 @@ Pattern modifiers:
     -q, --literal           Literal string match, no regex
     -x, --regexp            Regexp match (default; turn off with -q)
     -v, --invert-match      Negate next pattern
-    -E, --exact             Next pattern must match full string
+    -e, --exact             Next pattern must match full string
     -A, --and [PATTERN]     Must also appear with previous condition
     -O, --or [PATTERN]      Either previous or next condition may occur
                             Without argument, affect the following condition
@@ -152,7 +152,7 @@ Only works if single pattern given
 
 -q, -x, -i -I -C only affect all subsequent patterns.
 
--E, -v affect the immediate next only
+-e, -v affect the immediate next only
 
 can use -x -to a.aa -q -to bbbb
 
