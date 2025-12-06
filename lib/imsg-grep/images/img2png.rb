@@ -4,10 +4,10 @@ module Img2png
   extend FFI::Library
   ffi_lib "#{__dir__}/img2png.dylib"
 
-  attach_function :img2png_load,    [:pointer, :int, :pointer, :pointer], :pointer
-  attach_function :img2png_convert, [:pointer, :int, :int, :int, :int, :pointer, :pointer], :bool
-  attach_function :img2png_release, [:pointer], :void
-  attach_function :img2png_free,    [:pointer], :void
+  attach_function :img2png_load,      [:pointer, :int, :pointer, :pointer], :pointer, blocking: true
+  attach_function :img2png_convert,   [:pointer, :int, :int, :int, :int, :pointer, :pointer], :bool, blocking: true
+  attach_function :img2png_release,   [:pointer], :void
+  attach_function :img2png_free,      [:pointer], :void
 
   class Image
     def initialize(data)
