@@ -78,7 +78,7 @@ Media:
 Other:
     --version               Print version
     --reset                 Clear and rebuild cache
-    -h, --help              Show this help (long form shows more)
+    -h, --help              Show this help (see more with --help)
     --help-dates            Show detailed DATE help
 
 ~~LONG HELP BELOW~~
