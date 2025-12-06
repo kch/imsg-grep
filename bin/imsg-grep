@@ -656,10 +656,7 @@ begin
             next unless im
             fit, = im.fit 25, img_rows
             data = im.png_transform w:fit.w, h:fit.h
-            # puts cols
             cols += fit.c
-            # puts cols
-            # puts fit
             if cols > maxcols
               print "\n" * (fit.r+1)
               (print "  "; cols = 2 + fit.c)
