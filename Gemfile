@@ -6,6 +6,7 @@ gem "io-console"
 gem "sqlite3"
 gem "json"
 gem "rainbow"
+gem "concurrent-ruby"
 gem "strop", **({path: "../strop"} if File.directory? "../strop") # use local if we gots it
 
 group :development do
