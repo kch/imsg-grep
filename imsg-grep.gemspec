@@ -3,13 +3,13 @@
 Gem::Specification.new do |spec|
   spec.name     = "imsg-grep"
   spec.version  = "0.1.0"
-  spec.authors  = ["Author Name"]
-  spec.email    = ["author@example.com"]
-  spec.summary  = "iMessage database search and image processing"
-  spec.homepage = "https://github.com/example/imsg-grep"
+  spec.authors  = ["Caio Chassot"]
+  spec.email    = ["dev@caiochassot.com"]
+  spec.summary  = "iMessage database search"
+  spec.homepage = "https://github.com/kch/imsg-grep"
   spec.license  = "MIT"
 
-  spec.required_ruby_version = ">= 3.0.0"
+  spec.required_ruby_version = ">= 3.4.0"
   spec.platform = "darwin"
 
   spec.files = Dir[
