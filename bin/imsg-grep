@@ -723,7 +723,8 @@ begin
     info! c.count s
   end
 
-  exit messages.any? ? 0 : 1
+  # exiting with code seems to prevent at_exit from running, which will not populate cache, but well, it is what it is. will cache on next match
+  exit 1 unless messages.any?
 
 rescue OptionError => e
   err! e.message.sub(/^./){ $&.downcase } # strop using upcases but we aren't; not ready to change this on strop yet
