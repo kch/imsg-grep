@@ -2,7 +2,7 @@
 
 Gem::Specification.new do |spec|
   spec.name     = "imsg-grep"
-  spec.version  = "0.1.0"
+  spec.version  = IO.read("#{__dir__}/lib/imsg-grep/VERSION").chomp
   spec.authors  = ["Caio Chassot"]
   spec.email    = ["dev@caiochassot.com"]
   spec.summary  = "iMessage database search"

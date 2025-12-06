@@ -226,7 +226,7 @@ begin
     in label: "no-list-files"    then @list_files = false
     in label: "color"            then Rainbow.enabled = opt.yes?
     in label: "img"              then @preview |= "images"; add_cond :files, :images, via: opt
-    in label: "version"          then puts "imsg-grep v0.0.1"; exit
+    in label: "version"          then puts "imsg-grep v#{ IO.read("#{__dir__}/../lib/imsg-grep/VERSION").chomp }"; exit
     in label: "help"             then puts opt.name == ?h ? HELP_OPTS : HELP.sub(/^~~.*\n/, ''); exit
     in label: "help-dates"       then puts read_doc("HELP_DATES"); exit
     in label: "debug"            then @debug = true
