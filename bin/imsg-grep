@@ -225,7 +225,7 @@ begin
     in label: "list-files"       then @list_files = true
     in label: "no-list-files"    then @list_files = false
     in label: "color"            then Rainbow.enabled = opt.yes?
-    in label: "img"              then @preview |= "images"; add_cond :files, :images, via: opt
+    in label: "img"              then @preview ||= []; @preview|= ["images"]; add_cond :files, :images, via: opt
     in label: "silence-warnings" then @no_warn = true
     in label: "version"          then puts "imsg-grep v#{ IO.read("#{__dir__}/../lib/imsg-grep/VERSION").chomp }"; exit
     in label: "debug"            then @debug = true
