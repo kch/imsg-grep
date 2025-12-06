@@ -3,8 +3,8 @@
 
 require "bundler/setup"
 
-require_relative '../lib/messages'
-require_relative '../lib/dev/print_query'
+require_relative '../lib/imsg-grep/messages'
+require_relative '../lib/imsg-grep/dev/print_query'
 require 'readline'
 require 'fileutils'
 

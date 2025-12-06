@@ -3,7 +3,7 @@
 require "mkmf"
 
 # Check if dylib already exists
-dylib_path = File.join(File.dirname(__FILE__), "..", "lib", "img2png.dylib")
+dylib_path = File.join *%W[ #{File.dirname __FILE__} .. lib imsg-grep images img2png.dylib ]
 if File.exist?(dylib_path)
   # Create no-op Makefile since dylib already exists
   File.open("Makefile", "w") do |f|
@@ -51,7 +51,8 @@ if has_requirements
       \tswiftc -O -whole-module-optimization -lto=llvm-full -emit-library -D LIBRARY -o $(DLLIB) img2png.swift
 
       install: $(DLLIB)
-      \tcp $(DLLIB) $(sitearchdir)/$(DLLIB)
+      \tmkdir -p $(sitearchdir)/imsg-grep/images
+      \tcp $(DLLIB) $(sitearchdir)/imsg-grep/images/$(DLLIB)
 
       clean:
       \trm -f $(DLLIB)

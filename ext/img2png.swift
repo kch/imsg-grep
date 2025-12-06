@@ -8,7 +8,7 @@
 //        ./img2png --info < input.jpg   # prints WxH to stdout
 //
 // Build CLI:    swiftc -O -whole-module-optimization -lto=llvm-full -o bin/img2png ext/img2png.swift
-// Build dylib:  swiftc -O -whole-module-optimization -lto=llvm-full -emit-library -D LIBRARY -o lib/img2png.dylib ext/img2png.swift
+// Build dylib:  swiftc -O -whole-module-optimization -lto=llvm-full -emit-library -D LIBRARY -o lib/imsg-grep/images/img2png.dylib ext/img2png.swift
 
 import Foundation
 import ImageIO

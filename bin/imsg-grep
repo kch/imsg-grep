@@ -11,9 +11,9 @@ require "rainbow"
 require "io/console"
 require "strop"
 
-require_relative "../lib/grep/date"
-require_relative "../lib/grep/strop_utils"
-require_relative "../lib/messages"
+require_relative "../lib/imsg-grep/utils/date"
+require_relative "../lib/imsg-grep/utils/strop_utils"
+require_relative "../lib/imsg-grep/messages"
 
 
 include Strop::Exports
@@ -319,7 +319,7 @@ begin
   @exact     and warn! "last #{result[[:exact]].last._name} disregarded (not followed by pattern)"
   @next_bool and warn! "last #{result.opts.reverse_each.find{ %w[ and or ].include? it.label }._name} disregarded (not followed by pattern)"
 
-  require_relative "../lib/imaginator" if preview?
+  require_relative "../lib/imsg-grep/images/imaginator" if preview?
   if preview? && !Imaginator.image_tooling?
     @preview = nil
     e = "previews disabled: "
