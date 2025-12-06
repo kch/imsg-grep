@@ -42,7 +42,6 @@ Pattern modifiers:
     -A, --and [PATTERN]     Must also appear with previous condition
     -O, --or [PATTERN]      Either previous or next condition may occur
                             Without argument, affect the following condition
-                            See --help-bools for more
 
 Format:
     --[no-]color            Enable/disable color output (default: yes if tty)
@@ -57,7 +56,7 @@ Format:
     -N, --short-names       Shorten participant names like "First L"
                             Truncate chat names if --one-line
     -T, --tiny              Same as --short-names --one-line --urls
-    -k, --count             Print total messges found at the end
+    -k, --count             Print total messages found at the end
     -o, --capture [EXPR]    Print only matched string, or EXPR
     -j, --json              JSON output
     -P, --payload           Include payload in JSON
@@ -84,84 +83,99 @@ Other:
 
 ~~LONG HELP BELOW~~
 
+DATES
+
+  ISO8601 format (time/TZ optional): '2024-12-30', '2024-12-30 12:34'
+
+  Relative format: 4y (years), 1m5w (months+weeks), 30min, 3a (3am today)
+
+  Times default to local unless TZ specified or -Z used. See --help-dates for
+  details.
+
 LOGICAL EXPRESSIONS
 
   Conditions for --from, --chat, and --service are OR'd with others from same
-  option.
-
-  --links, -Y, -X, -S too are all OR'd together.
+  option. --links, -Y, -X, -S too are all OR'd together.
 
   Everything else is AND'ed by default. Chains of explicit --and/--or combine
-  as a single expression. Then get AND'ed with the rest.
+  as a single expression. Then get AND'ed with the rest. ANDs bind before ORs.
 
-  -f x --or y is valid, as well as -f x --or -f y
-  Can mix too like -fX -O -cY
+  '-f x --or y' is shorthand for '-f x --or -f y'.
 
-DATES
+  Mixing options is possible: '-fX -O -c -A -Mfoo'.
 
-  Two formats supported:
+PATTERNS
 
-  1. ISO8601 format. Time and TZ optional.
+  PATTERN or CONTACT is a regular expression.
 
-  Examples
+  CONTACT matches address book information: You can give part of a name, phone
+  number, email. It doesn't matter which one a message was sent/received from.
 
-    -d '2024-12-30'
-    -d '2024-12-30 12:34'
-    -d '2024-12-30T12:45Z'
+  Smart-case is the default case, which means case-insensitive, unless
+  uppercase letters present. Use -q to match literal strings, -i and -I to
+  change case sensitivity.
 
-  Times are considered local unless TZ component present in string,
-  or -Z option used.
+  The flags -q, -x, -i, -I, and -C affect all subsequent patterns.
+  -e and -v affect the immediate next pattern only.
 
-  2. Relative dates/times:
+CAPTURE
 
-    -d 4y     # since 4 years ago
-    -d 1m5w   # 1 month 5 weeks
-    -d 30min  # 30 minutes
-    -d 3a     # since 3am today
+  EXPR is a format string for the message output where you can use capture
+  groups (alongside any text).
 
-  See --help-dates for more details.
+  - When EXPR omitted, the entire match is presented. ('-o' = '-o"\0"')
+  - When it's a digit, that capture group is presented. ('-o1' = '-o"\1"')
+  - A comma-separated list of digits outputs those groups joined by space.
+  - When it's a format string: "foo \1 bar \2", interpolates the captures.
 
-# Patterns
+  For a pattern to be available for capture, it must not be part of a logical
+  expression (--and/or) nor negated (-v).
 
-PATTERN or CONTACT is a regular expression.
+  If multiple message patterns are given, the last is used for capture.
 
-CONTACT matches a contact's address book information: You can give part of a name, phone number, email.
+FILES AND IMAGES
 
-Smart-case is the default case, which means case-insensitive, unless upcase letters present.
+  Inline image previews are possible on terminals that support it. We implement
+  iTerm and Kitty (Ghostty, etc) protocols.
 
-Use -q to match literal strings, -i and -I to change case sensitivity.
+  Previews are available for links and image files. You can preview both (-p)
+  or either (-pi, -pl).
 
-Pattern flags (-iICxq) affect all subsequent options. So:
+  Filter files by:
+    --files                  # messages having any files at all
+    --files=images           # with images
+    --files=ext:'jpe?g|png'  # with jpeg, jpg, png extensions
+    --files=mime:video       # video files
+    --files=name:'\bcats?\b' # files with word 'cat' or 'cats' in the name
 
-  -Iqf Andy -xit 'pedro|bob' -cfoo
+  JSON output does not include files by default. Use '-b' to include.
 
-matches literal case-sensitive 'Andy' sender, and case-insensitive regexp recipient, and chat name too.
+OTHER NOTES
 
-Matches are partial, if you need to match a full name (or email, etc) use regexp anchors.
+  '--to foo' will find a message sent by someone else to a group where foo
+  is a member. Use '--sent' will constrain to only messages you sent, and '-vc'
+  will exclude group chats entirely.
 
-# Capture
+  When listing links, using '--urls' is advisable so you get a shorter,
+  resolved (often canonical) URL.
 
---capture EXPR
-When EXPR omitted, the entire match is presented.
-When its a number, that capture group is presented.
-When its a format string: "foo \1 bar \2", interpolates the captures.
--o same as -o"\0"
--o1 same as -o"\1"
---o "\3, \2"
-Only works if single pattern given
-\0 is the full match
+  Most things can be abbreviated, some combined:
+    --rev     = --reverse
+    -Vi,r     = --service=imessage --or --service=rcs
+    -Fn:bar,i = --files=name:bar --or --files=images
 
--q, -x, -i -I -C only affect all subsequent patterns.
+  You cannot combine patterns by comma, but you can use '|': --from 'foo|bar'
+  This is generally simpler than using '--or' for same option.
 
--e, -v affect the immediate next only
+  Most things are regular expressions, even where you don't expect it.
+  Cf. file filter above.
 
-can use -x -to a.aa -q -to bbbb
+EXAMPLES
 
--f a -f b is OR, ie, same opts combine as or. diff opts genereally combine as AND
-
-
-Examples:
-  PROG pattern                   # Basic search
-  PROG -f Alice pattern          # From Alice
+  PROG pattern                  # Message contents search
+  PROG -f Alice pattern         # From Alice
   PROG -d 2024-01-01 pattern    # Since date
   PROG -o '1,2' '(\w+):(\d+)'   # Capture groups
+  PROG -eqIf andy@example.com -xit 'pedro|bob' -c
+    matches case-sensitive, literal, exact (whole email) andy@example.com
+    sender, and case-insensitive regexp recipient, and must be a group chat.
