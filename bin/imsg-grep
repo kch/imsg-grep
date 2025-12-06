@@ -531,11 +531,33 @@ begin
     end.join
   end
 
-  # link preview setup
-  if preview? :links
-    cw = IO.console.winsize[1]
-    @link_preview_cols = [(cw - 2) / 2, 20].min
-  end
+  # link/image preview setup
+  if preview?
+    POOL = Concurrent::FixedThreadPool.new(Concurrent.processor_count - 1)
+    cols = IO.console.winsize[1]
+    @link_preview_cols = [(cols - 2) / 2, 20].min
+    @link_images = {}
+    @images = {}
+    messages.each do |msg|
+      preview?(:links) and
+      link = msg[:link] and
+      @link_images[link] = Concurrent::Promises.future_on(POOL, msg) do |msg|
+        # print Rainbow(".").red
+        ix   = link[:image_idx] or next
+        file = msg.dig(:files, ix) or next
+        path = File.expand_path file[:filename]
+        Imaginator::Image.new(path).load
+      end
+      msg[:images] = msg[:files].select{ it[:mime_type]&.start_with?('image/') }
+      preview?(:images) and msg[:images].each do |im|
+        @images[im] = Concurrent::Promises.future_on(POOL, im) do |im|
+          # print Rainbow(".").green
+          path = File.expand_path im[:filename]
+          Imaginator::Image.new(path).load
+        end # promise
+      end # images
+    end # messages
+  end # preview
 
   ################################################################################
   ### Print messages #############################################################
@@ -590,8 +612,7 @@ begin
       nn         = "\n\n"
       title      = (link[:title]   if link)
       summary    = (link[:summary] if link)
-      link_image = (files[link[:image_idx]] if link && link[:image_idx] && files && preview?(:links))
-      link_image &&= File.expand_path link_image[:filename]
+      link_image = (@link_images[link].value! if link && preview?(:links))
     end
 
     if @no_meta # oneline included, already onelined above
@@ -615,14 +636,12 @@ begin
       puts buf
 
       pad = 2
-      link_preview = url && preview?(:links) && link_image
-      link_image = Imaginator::Image.new(link_image).load if link_preview
       pad += 1 + @link_preview_cols if link_image
 
       buf = +""
-      buf << wrap(text, pad, wrap_all: link_preview) << nn unless text.empty?
-      buf << c.link_title(wrap(title, pad, wrap_all: link_preview)) << nn if title
-      buf << c.link_summary(wrap(summary, pad, wrap_all: link_preview)) << nn if summary
+      buf << wrap(text, pad, wrap_all: !!link_image) << nn unless text.empty?
+      buf << c.link_title(wrap(title, pad, wrap_all: !!link_image)) << nn if title
+      buf << c.link_summary(wrap(summary, pad, wrap_all: !!link_image)) << nn if summary
 
       if link_image
         buf_rows = buf.strip.count(?\n) + 1
@@ -645,11 +664,8 @@ begin
         end
         puts
 
-        images = files.select{ it[:mime_type]&.start_with?('image/') }.map do |img|
-          path = File.expand_path img[:filename]
-          Imaginator::Image.new(path).load
-        end.compact
-
+        # gotta load them all upfront cause gotta know if the last exists for cursor move
+        images = msg[:images].map{ @images[it].value! }.compact
         if preview?(:images) && images.any?
           img_rows = 8
           maxcols  = IO.console.winsize[1] - 2
