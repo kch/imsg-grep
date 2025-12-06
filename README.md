@@ -13,6 +13,12 @@ Search iMessage history with regex patterns, date ranges, and participant filter
 - Inline terminal images
 - Boolean expressions
 
+## Requirements
+
+macOS, ruby 3.4+, SQLite.
+
+iTerm or Ghostty (or other kitty) for image support. 
+
 ## Installing
 
 ```
