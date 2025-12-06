@@ -32,6 +32,7 @@ Gem::Specification.new do |spec|
   spec.add_dependency "sqlite3", "~> 2.8"
   spec.add_dependency "rainbow", "~> 3.1"
   spec.add_dependency "strop", "~> 0.4"
+  spec.add_dependency "concurrent-ruby", "~> 1.3"
 
   spec.add_development_dependency "minitest", "~> 5.26"
   spec.add_development_dependency "rake", "~> 13.0"
