@@ -542,7 +542,10 @@ begin
     end.join
   end
 
-  # link/image preview setup
+
+  ################################################################################
+  ## link/image preview setup ####################################################
+  ################################################################################
   if preview?
     # suppress CFPropertyList warnings on stderr. They're harmless but affect image rendering
     ENV["OS_ACTIVITY_MODE"] = ENV["OS_ACTIVITY_DT_MODE"] = "disable"
