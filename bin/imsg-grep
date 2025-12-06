@@ -557,6 +557,11 @@ begin
     @img_rows = 8
     @link_images = {}
     @images = {}
+
+    # because we need to retain the imgs for resizing, too many links will use too much memory
+    # so instead we release and reload them if need to resize again
+    release_links = preview?(:links) && messages.count{it[:link]} > 1000
+
     messages.each do |msg|
       preview?(:links) and
       link = msg[:link] and
@@ -567,7 +572,11 @@ begin
         img  = Imaginator::Image.new(path).load or next
         fit, fits = img.fit @link_preview_cols, @link_preview_min_rows
         png = img.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
-        # can't release img yet, might reuse. released after png use
+        if release_links
+          img.release
+          img = path
+        end
+        # if safe enough to not release: don't release img yet, might reuse. released after png use
         [fit, png, img]
       end
       msg[:images] = msg[:files].select{ it[:mime_type]&.start_with?('image/') }
@@ -673,6 +682,7 @@ begin
         img_rows = [buf_rows, @link_preview_min_rows].max
         fit, png, img = link_image_result
         if img_rows != @link_preview_min_rows
+          img = Imaginator::Image.new(img).load if img.is_a? String # it's a path, original img released
           fit1, fits = img.fit @link_preview_cols, img_rows
           # if the backround render image is different from what we need now that we know the text size, do it again
           if fit1 != fit
@@ -680,7 +690,7 @@ begin
             png = img.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
           end
         end
-        img.release
+        img.release unless img.is_a? String
         print " "
         Imaginator.print_image(data: png, c: @link_preview_cols)
         puts
