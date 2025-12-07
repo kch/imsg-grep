@@ -371,6 +371,16 @@ begin
   sorted_singles = keyed_singles.sort_by{|k,| filter_order.index(k) || Float::INFINITY }.map(&:last)
   groups = sorted_singles + grouped  # put it back together
 
+  begin
+    Messages.init_fs
+  rescue Errno::EPERM, Errno::EACCES
+    $stderr.print "You must grant #{ENV['TERM_PROGRAM']} Full Disk Access so #{PROG} can access the chat database. Open System Settings pane? [y/N] "
+    $stdin.gets.to_s.strip.downcase == "y" and system 'open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"'
+    exit 1
+  rescue => e
+    err! e.message
+    exit 1
+  end
   Messages.init
 
   @file_filters = []

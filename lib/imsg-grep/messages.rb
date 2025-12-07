@@ -10,29 +10,36 @@ require_relative 'apple/attr_str'
 module Messages
   APPLE_EPOCH = 978307200
 
-  ADDY_DB  = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
-  IMSG_DB  = File.expand_path("~/Library/Messages/chat.db")
-  CACHE_DB = File.expand_path("~/.cache/imsg-grep/cache.db")
-
-  def self.reset_cache = FileUtils.rm_f(CACHE_DB)
+  def self.reset_cache = FileUtils.rm_f(@cache_db)
   def self.db = @db
+
+  def self.init_fs
+    return if @addy_db # already ran
+    @addy_db  = Dir[File.expand_path("~/Library/Application Support/AddressBook/Sources/*/AddressBook-*.abcddb")][0]
+    @imsg_db  = File.expand_path("~/Library/Messages/chat.db")
+    @cache_db = File.expand_path("~/.cache/imsg-grep/cache.db")
+
+    raise "Contacts database not found" unless @addy_db
+
+    FileUtils.mkdir_p File.dirname(@cache_db)
+    FileUtils.touch(@cache_db)
+
+    [@addy_db, @imsg_db, @cache_db].each do |db|
+      raise "Database not found: #{db}" unless File.exist?(db)
+      raise "Database not readable: #{db}" unless File.readable?(db)
+    end
+  end
 
   def self.init
     ################################################################################
     ### DB Setup ###################################################################
     ################################################################################
-    FileUtils.mkdir_p File.dirname(CACHE_DB)
-    FileUtils.touch(CACHE_DB)
 
-    [ADDY_DB, IMSG_DB, CACHE_DB].each do |db|
-      raise "Database not found: #{db}" unless File.exist?(db)
-      raise "Database not readable: #{db}" unless File.readable?(db)
-    end
-
+    init_fs
     @db = SQLite3::Database.new(":memory:")
-    @db.execute "ATTACH DATABASE '#{ADDY_DB}' AS _addy"
-    @db.execute "ATTACH DATABASE '#{IMSG_DB}' AS _imsg"
-    @db.execute "ATTACH DATABASE '#{CACHE_DB}' AS _cache"
+    @db.execute "ATTACH DATABASE '#{@addy_db}' AS _addy"
+    @db.execute "ATTACH DATABASE '#{@imsg_db}' AS _imsg"
+    @db.execute "ATTACH DATABASE '#{@cache_db}' AS _cache"
 
     def @db.select_hashes(sql) = prepare(sql).execute.enum_for(:each_hash).map{ it.transform_keys(&:to_sym) }
     def @db.ƒ(f, &) = define_function_with_flags(f.to_s, SQLite3::Constants::TextRep::UTF8 | SQLite3::Constants::TextRep::DETERMINISTIC, &)

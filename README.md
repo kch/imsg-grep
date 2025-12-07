@@ -19,7 +19,9 @@ macOS, ruby 3.4+, SQLite.
 
 Full Disk Access must be enabled for terminal.
 
-iTerm or Ghostty (or other kitty) for image support. 
+iTerm or Ghostty (or other kitty) for image support.
+
+swiftc for development. (run `rake build:lib`)
 
 ## Installing
 
