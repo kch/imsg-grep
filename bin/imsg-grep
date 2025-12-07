@@ -373,9 +373,13 @@ begin
 
   begin
     Messages.init_fs
-  rescue Errno::EPERM, Errno::EACCES
-    $stderr.print "You must grant #{ENV['TERM_PROGRAM']} Full Disk Access so #{PROG} can access the chat database. Open System Settings pane? [y/N] "
-    $stdin.gets.to_s.strip.downcase == "y" and system 'open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"'
+  rescue Errno::EPERM, Errno::EACCES => e
+    if $stdout.tty? && $stdin.tty?
+      $stderr.print "You must grant #{ENV['TERM_PROGRAM']} Full Disk Access so #{PROG} can access the chat database. Open System Settings pane? [y/N] "
+      $stdin.gets.to_s.strip.downcase == ?y and system 'open "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles"'
+    else
+      err! "full disk access required (#{e.message})"
+    end
     exit 1
   rescue => e
     err! e.message
