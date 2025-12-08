@@ -708,7 +708,7 @@ begin
         print " "
         Imaginator.print_image(data: png, c: @link_preview_cols)
         puts
-        print "\e[#{fit.r}A" # go up by image rows
+        print "\e[#{fit.r}A" # go up by image rows to print padded buf next to it
       end
 
       print buf
