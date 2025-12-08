@@ -698,7 +698,7 @@ begin
         if img_rows != @link_preview_min_rows
           img = Imaginator::Image.new(img).load if img.is_a? String # it's a path, original img released
           fit1, fits = img.fit @link_preview_cols, img_rows
-          # if the backround render image is different from what we need now that we know the text size, do it again
+          # if the promise-rendered image is different from what we need now that we know the text size, do it again
           if fit1 != fit
             fit = fit1
             png = img.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
