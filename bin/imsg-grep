@@ -582,7 +582,9 @@ begin
       @link_images[link] = Concurrent::Promises.future_on(POOL, msg) do |msg|
         ix   = link[:image_idx] or next
         file = msg.dig(:files, ix) or next
-        path = File.expand_path file[:filename]
+        path = file[:filename] or next
+        path = File.expand_path path
+        File.exist?(path) or next
         img  = Imaginator::Image.new(path).load or next
         fit, fits = img.fit @link_preview_cols, @link_preview_min_rows
         png = img.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
@@ -596,7 +598,9 @@ begin
       msg[:images] = msg[:files].select{ it[:mime_type]&.start_with?('image/') }
       preview?(:images) and msg[:images].each do |im|
         @images[im] = Concurrent::Promises.future_on(POOL, im) do |im|
-          path = File.expand_path im[:filename]
+          path = im[:filename] or next
+          path = File.expand_path path
+          File.exist?(path) or next
           img  = Imaginator::Image.new(path).load or next
           fit, = img.fit 25, @img_rows
           png  = img.png_transform w:fit.w, h:fit.h

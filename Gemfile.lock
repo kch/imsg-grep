@@ -1,3 +1,8 @@
+PATH
+  remote: ../strop
+  specs:
+    strop (0.4.0)
+
 GEM
   remote: https://rubygems.org/
   specs:
@@ -31,7 +36,6 @@ GEM
       io-console (~> 0.5)
     sqlite3 (2.8.1-arm64-darwin)
     stringio (3.1.9)
-    strop (0.4.0)
     tsort (0.2.0)
 
 PLATFORMS
@@ -47,7 +51,7 @@ DEPENDENCIES
   minitest
   rainbow
   sqlite3
-  strop
+  strop!
 
 BUNDLED WITH
    2.7.2
