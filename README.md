@@ -26,6 +26,7 @@ swiftc for development. (run `rake build:lib`)
 ## Installing
 
 ```
+brew install ruby
 gem install imsg-grep
 ```
 
