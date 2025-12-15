@@ -716,7 +716,7 @@ begin
 
       if @list_files
         for file in files.reject{ it[:mime_type].nil? }
-          path, _, name = file[:filename].rpartition %r_(?<=/)_
+          path, _, name = file[:filename].to_s.rpartition %r_(?<=/)_
           p, q, r = path.rpartition %r_/\KTemporaryItems(?=/)_
           path = c.file_path(p) + c.file_path_bad(q) + c.file_path(r)
           puts "  " + path + c.file_name(name) + ?\n
