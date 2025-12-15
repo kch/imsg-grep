@@ -2,7 +2,6 @@
 # frozen_string_literal: true
 # Search and filter iMessage database entries with regex patterns, date ranges, and participant filters
 
-require "bundler/setup"
 
 require "date"
 require "json"

@@ -1,8 +1,6 @@
 #!/usr/bin/env ruby
 # Display detailed information about a specific message by ID from the iMessage database
 
-require "bundler/setup"
-
 require_relative '../lib/imsg-grep/dev/print_query'
 require_relative '../lib/imsg-grep/messages'
 
