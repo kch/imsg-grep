@@ -28,12 +28,16 @@ Gem::Specification.new do |spec|
   spec.require_paths = ["lib"]
   spec.extensions    = ["ext/extconf.rb"]
 
+  spec.add_dependency "base64", "~> 0.3"
   spec.add_dependency "ffi", "~> 1.17"
+  spec.add_dependency "io-console", "~> 0.8"
+  spec.add_dependency "json", "~> 2.17"
   spec.add_dependency "sqlite3", "~> 2.8"
   spec.add_dependency "rainbow", "~> 3.1"
   spec.add_dependency "strop", "~> 0.4"
   spec.add_dependency "concurrent-ruby", "~> 1.3"
 
+  spec.add_development_dependency "debug", "~> 1.11"
   spec.add_development_dependency "minitest", "~> 5.26"
   spec.add_development_dependency "rake", "~> 13.0"
 end
