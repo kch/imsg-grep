@@ -595,11 +595,11 @@ begin
         [fit, png, img]
       end
       msg[:images] = msg[:files].select{ it[:mime_type]&.start_with?('image/') }
-      preview?(:images) and msg[:images].each do |im|
+      preview?(:images) and
+      msg[:images].each do |im|
         @images[im] = Concurrent::Promises.future_on(POOL, im) do |im|
-          path = im[:filename] or next
-          path = File.expand_path path
-          File.exist?(path) or next
+          path = im[:filename] and
+          path = File.expand_path(path) and File.exist?(path) and
           img  = Imaginator::Image.new(path).load or next
           fit, = img.fit 25, @img_rows
           png  = img.png_transform w:fit.w, h:fit.h
