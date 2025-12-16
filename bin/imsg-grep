@@ -578,12 +578,12 @@ begin
     messages.each do |msg|
       preview?(:links) and
       link = msg[:link] and
+      link.tap{ it[:guid] = msg[:guid] } and # adding guid ensures link is a uniq key so identical links dont overwrite the prev
       @link_images[link] = Concurrent::Promises.future_on(POOL, msg) do |msg|
-        ix   = link[:image_idx] or next
-        file = msg.dig(:files, ix) or next
-        path = file[:filename] or next
-        path = File.expand_path path
-        File.exist?(path) or next
+        ix   = link[:image_idx] and
+        file = msg.dig(:files, ix) and
+        path = file[:filename] and
+        path = File.expand_path(path) and File.exist?(path) and
         img  = Imaginator::Image.new(path).load or next
         fit, fits = img.fit @link_preview_cols, @link_preview_min_rows
         png = img.png_transform w:fit.w, h:fit.h, pad_w:fits[:cfit].pad_w
