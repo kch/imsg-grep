@@ -1,6 +1,8 @@
-# imsg-grep
+  # imsg-grep
 
 Search and filter iMessage history from command line.
+
+<img width="721" height="406" alt="preview" src="https://github.com/user-attachments/assets/c935e32f-4373-4205-97e2-3fc44b2e6f82" />
 
 ## Features
 
