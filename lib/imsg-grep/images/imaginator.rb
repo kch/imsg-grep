@@ -60,20 +60,16 @@ module Imaginator
 
   end
 
-
   def term_seq(seq, end_marker)
-    t = ->{ Process.clock_gettime Process::CLOCK_MONOTONIC }
-    buf = ""
+    buf   = +""
     IO.console.raw do |tty|
       tty << seq
       tty.flush
-      timeout = t.() + 0.1
       loop do
-        buf << tty.read_nonblock(1)
         break if buf.end_with? end_marker
-      rescue IO::WaitReadable
-        break if t.() > timeout
-        IO.select([tty], nil, nil, 0.01)
+        break unless tty.wait_readable(0.05)
+        buf << tty.read_nonblock(4096)
+      rescue IO::WaitReadable, EOFError
       end
     end
     buf
